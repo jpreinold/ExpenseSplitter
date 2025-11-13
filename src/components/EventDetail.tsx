@@ -33,6 +33,7 @@ type EventDetailProps = {
   onAddParticipant: (name: string) => void
   onRemoveParticipant: (participantId: string) => void
   onRemoveExpense: (expenseId: string) => void
+  onEditExpense: (expenseId: string) => void
 }
 
 export function EventDetail({
@@ -49,6 +50,7 @@ export function EventDetail({
   onAddParticipant,
   onRemoveParticipant,
   onRemoveExpense,
+  onEditExpense,
 }: EventDetailProps) {
   const [participantName, setParticipantName] = useState('')
   const totalFormatted = useMemo(
@@ -105,19 +107,23 @@ export function EventDetail({
           <h3 id="participants-heading">Participants</h3>
           <span className="badge">{participants.length}</span>
         </div>
-        <form className="inline-form" onSubmit={handleSubmitParticipant}>
-          <label>
-            <span className="sr-only">New participant name</span>
+        <form className="inline-form participant-form" onSubmit={handleSubmitParticipant}>
+          <label className="sr-only" htmlFor="new-participant">
+            New participant name
+          </label>
+          <div className="input-group">
             <input
+              id="new-participant"
               type="text"
               value={participantName}
               onChange={(event) => setParticipantName(event.target.value)}
               placeholder="Add someone new"
+              className="input-group__control"
             />
-          </label>
-          <button type="submit" className="primary-button">
-            Add
-          </button>
+            <button type="submit" className="input-group__button" aria-label="Add participant">
+              Add
+            </button>
+          </div>
         </form>
         {participants.length === 0 ? (
           <div className="empty-state">
@@ -130,11 +136,12 @@ export function EventDetail({
               <li key={participant.id}>
                 <span>{participant.name}</span>
                 <button
+                  aria-label={`Remove ${participant.name}`}
                   type="button"
-                  className="ghost-button ghost-button--danger"
+                  className="icon-button icon-button--danger"
                   onClick={() => handleRemoveParticipant(participant.id)}
                 >
-                  Remove
+                  <span aria-hidden>×</span>
                 </button>
               </li>
             ))}
@@ -156,28 +163,43 @@ export function EventDetail({
         ) : (
           <ul className="expense-list">
             {expenses.map((expense) => (
-              <li key={expense.id} className="expense-card">
-                <div>
-                  <p className="expense-title">{expense.description}</p>
-                  <p className="expense-meta">
-                    Paid by {expense.paidBy.join(', ')}
-                    {expense.date ? ` • ${expense.date}` : ''}
-                  </p>
+              <li key={expense.id}>
+                <div
+                  className="expense-card expense-card--interactive"
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => onEditExpense(expense.id)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault()
+                      onEditExpense(expense.id)
+                    }
+                  }}
+                >
+                  <div>
+                    <p className="expense-title">{expense.description}</p>
+                    <p className="expense-meta">
+                      Paid by {expense.paidBy.join(', ')}
+                      {expense.date ? ` • ${expense.date}` : ''}
+                    </p>
+                  </div>
+                  <div className="expense-amount">
+                    <span>{expense.formattedAmount}</span>
+                    <small>{expense.splitSummary}</small>
+                  </div>
                   <button
-                    className="ghost-button ghost-button--danger small"
+                    className="icon-button icon-button--danger expense-card__remove"
                     type="button"
-                    onClick={() => {
+                    aria-label="Remove expense"
+                    onClick={(event) => {
+                      event.stopPropagation()
                       if (window.confirm('Remove this expense? You can’t undo this yet.')) {
                         onRemoveExpense(expense.id)
                       }
                     }}
                   >
-                    Remove expense
+                    <span aria-hidden>×</span>
                   </button>
-                </div>
-                <div className="expense-amount">
-                  <span>{expense.formattedAmount}</span>
-                  <small>{expense.splitSummary}</small>
                 </div>
               </li>
             ))}

@@ -221,6 +221,11 @@ export function describeSplit(expense: Expense, participants: Map<ParticipantId,
       .filter(Boolean)
       .join(', ')
 
+  const formatter = new Intl.NumberFormat(undefined, {
+    style: 'currency',
+    currency: expense.currency,
+  })
+
   switch (expense.split.type) {
     case 'even': {
       const names = participantNames(expense.split.participantIds)
@@ -241,7 +246,7 @@ export function describeSplit(expense: Expense, participants: Map<ParticipantId,
       const details = expense.split.allocations
         .map((allocation) => {
           const name = participants.get(allocation.participantId)?.name ?? 'Unknown'
-          return `${name} (${allocation.amount.toFixed(2)})`
+          return `${name} (${formatter.format(allocation.amount)})`
         })
         .join(', ')
       return `Exact amounts · ${expense.split.allocations.length} participants (${details})`

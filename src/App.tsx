@@ -1,11 +1,12 @@
 import { useMemo, useState } from 'react'
 import './App.css'
 import { EventDetail } from './components/EventDetail'
+import { EventCreateModal } from './components/EventCreateModal'
 import { EventList } from './components/EventList'
 import { ExpenseEditor } from './components/ExpenseEditor'
 import { Summary } from './components/Summary'
 import { useLocalStore } from './state/useLocalStore'
-import type { ExpenseDraft } from './state/useLocalStore'
+import type { EventDraft, ExpenseDraft } from './state/useLocalStore'
 import { calculateEventBalances, describeSplit, suggestSettlements } from './utils/calculations'
 
 type ViewMode = 'events' | 'detail' | 'summary' | 'editor'
@@ -15,6 +16,8 @@ function App() {
   const events = state.events
 
   const [view, setView] = useState<ViewMode>('events')
+  const [isCreateEventModalOpen, setIsCreateEventModalOpen] = useState(false)
+  const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null)
 
   const selectedEventId = state.lastViewedEventId ?? events[0]?.id ?? null
 
@@ -33,6 +36,11 @@ function App() {
   }, [eventParticipants])
 
   const eventExpenses = useMemo(() => selectedEvent?.expenses ?? [], [selectedEvent])
+
+  const editingExpense = useMemo(() => {
+    if (!selectedEvent || !editingExpenseId) return null
+    return selectedEvent.expenses.find((expense) => expense.id === editingExpenseId) ?? null
+  }, [editingExpenseId, selectedEvent])
 
   const eventList = useMemo(() => {
     return events.map((eventItem) => {
@@ -124,6 +132,7 @@ function App() {
     if (!selectedEvent) return
     actions.upsertExpense(selectedEvent.id, draft)
     setView('detail')
+    setEditingExpenseId(null)
   }
 
   const handleAddParticipantToEvent = (name: string) => {
@@ -141,12 +150,29 @@ function App() {
     actions.removeExpense(selectedEvent.id, expenseId)
   }
 
-  const handleCreateEvent = () => {
-    const name = window.prompt('Name your event?', '')
-    if (!name) return
-    const event = actions.createEvent({ name })
+  const handleOpenCreateEventModal = () => {
+    setIsCreateEventModalOpen(true)
+  }
+
+  const handleCloseCreateEventModal = () => {
+    setIsCreateEventModalOpen(false)
+  }
+
+  const handleCreateEvent = (draft: EventDraft) => {
+    const event = actions.createEvent(draft)
     actions.setLastViewedEvent(event.id)
     setView('detail')
+    setIsCreateEventModalOpen(false)
+  }
+
+  const handleAddExpense = () => {
+    setEditingExpenseId(null)
+    setView('editor')
+  }
+
+  const handleEditExpense = (expenseId: string) => {
+    setEditingExpenseId(expenseId)
+    setView('editor')
   }
 
   const activeView = selectedEvent ? view : 'events'
@@ -189,7 +215,7 @@ function App() {
 
       <main className="view-container">
         {activeView === 'events' && (
-          <EventList events={eventList} onSelect={handleSelectEvent} onCreate={handleCreateEvent} />
+          <EventList events={eventList} onSelect={handleSelectEvent} onCreate={handleOpenCreateEventModal} />
         )}
 
         {activeView === 'detail' && selectedEvent ? (
@@ -209,11 +235,12 @@ function App() {
             participants={eventParticipants}
             expenses={eventExpensePreviews}
             onBack={() => setView('events')}
-            onAddExpense={() => setView('editor')}
+            onAddExpense={handleAddExpense}
             onShowSummary={() => setView('summary')}
             onAddParticipant={handleAddParticipantToEvent}
             onRemoveParticipant={handleRemoveParticipantFromEvent}
             onRemoveExpense={handleRemoveExpense}
+            onEditExpense={handleEditExpense}
           />
         ) : null}
 
@@ -221,8 +248,12 @@ function App() {
           <ExpenseEditor
             participants={eventParticipants}
             currency={selectedEvent.currency}
-            onCancel={() => setView('detail')}
+            onCancel={() => {
+              setView('detail')
+              setEditingExpenseId(null)
+            }}
             onSave={handleSaveExpense}
+            initialExpense={editingExpense ?? undefined}
           />
         ) : null}
 
@@ -244,6 +275,12 @@ function App() {
         </p>
         <p className="section-subtitle">Works great offline—perfect for cabins, boats, and airports.</p>
       </footer>
+
+      <EventCreateModal
+        isOpen={isCreateEventModalOpen}
+        onClose={handleCloseCreateEventModal}
+        onCreate={handleCreateEvent}
+      />
     </div>
   )
 }

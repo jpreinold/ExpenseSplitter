@@ -1,8 +1,9 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { ChangeEvent, FormEvent } from 'react'
 import type { ExpenseDraft, SplitStrategy } from '../state/useLocalStore'
 import { calculateExpenseShares } from '../utils/calculations'
 import type { ParticipantProfile } from './EventDetail'
+import type { Expense } from '../types/domain'
 
 type SplitMode = SplitStrategy
 
@@ -15,6 +16,7 @@ type ExpenseEditorProps = {
   currency: string
   onCancel: () => void
   onSave: (draft: ExpenseDraft) => void
+  initialExpense?: Expense
 }
 
 const splitModes: { value: SplitMode; label: string; helper: string }[] = [
@@ -97,7 +99,7 @@ function buildSplitInstruction(
   }
 }
 
-export function ExpenseEditor({ participants, currency, onCancel, onSave }: ExpenseEditorProps) {
+export function ExpenseEditor({ participants, currency, onCancel, onSave, initialExpense }: ExpenseEditorProps) {
   const [description, setDescription] = useState('')
   const [amount, setAmount] = useState('')
   const [date, setDate] = useState('')
@@ -106,7 +108,71 @@ export function ExpenseEditor({ participants, currency, onCancel, onSave }: Expe
   const [selected, setSelected] = useState<SelectionMap>(() => initializeSelection(participants))
   const [weights, setWeights] = useState<WeightMap>(() => initializeWeights(participants))
   const [amounts, setAmounts] = useState<AmountMap>(() => initializeAmounts(participants))
-  const [note, setNote] = useState('')
+  const [note, setNote] = useState(initialExpense?.notes ?? '')
+
+  const currencyFormatter = useMemo(
+    () =>
+      new Intl.NumberFormat(undefined, {
+        style: 'currency',
+        currency,
+      }),
+    [currency],
+  )
+
+  useEffect(() => {
+    const defaultPayer = participants[0]?.id ?? ''
+
+    if (initialExpense) {
+      setDescription(initialExpense.description)
+      setAmount(initialExpense.amount.toFixed(2))
+      setPaidBy(initialExpense.paidBy[0]?.participantId ?? defaultPayer)
+      setSplitMode(initialExpense.split.type)
+      setNote(initialExpense.notes ?? '')
+
+      const createdDate =
+        initialExpense.createdAt && Number.isFinite(Date.parse(initialExpense.createdAt))
+          ? new Date(initialExpense.createdAt).toISOString().slice(0, 10)
+          : ''
+      setDate(createdDate)
+
+      const selection = initializeSelection(participants)
+      Object.keys(selection).forEach((key) => {
+        selection[key] = false
+      })
+      const baseWeights = initializeWeights(participants)
+      const baseAmounts = initializeAmounts(participants)
+
+      if (initialExpense.split.type === 'even') {
+        initialExpense.split.participantIds.forEach((participantId) => {
+          selection[participantId] = true
+        })
+      } else if (initialExpense.split.type === 'shares') {
+        initialExpense.split.shares.forEach((share) => {
+          selection[share.participantId] = true
+          baseWeights[share.participantId] = share.weight.toString()
+        })
+      } else {
+        initialExpense.split.allocations.forEach((allocation) => {
+          selection[allocation.participantId] = true
+          baseAmounts[allocation.participantId] = allocation.amount.toFixed(2)
+        })
+      }
+
+      setSelected(selection)
+      setWeights(baseWeights)
+      setAmounts(baseAmounts)
+    } else {
+      setDescription('')
+      setAmount('')
+      setDate('')
+      setPaidBy(defaultPayer)
+      setSplitMode('even')
+      setSelected(initializeSelection(participants))
+      setWeights(initializeWeights(participants))
+      setAmounts(initializeAmounts(participants))
+      setNote('')
+    }
+  }, [initialExpense, participants])
 
   const selectedParticipants = useMemo(() => {
     const list = participants.filter((participant) => selected[participant.id])
@@ -129,6 +195,7 @@ export function ExpenseEditor({ participants, currency, onCancel, onSave }: Expe
     if (!split) return
 
     const draft: ExpenseDraft = {
+      id: initialExpense?.id,
       description: description.trim(),
       amount: Number(parsedAmount.toFixed(2)),
       paidBy: [{ participantId: paidBy, amount: Number(parsedAmount.toFixed(2)) }],
@@ -219,6 +286,8 @@ export function ExpenseEditor({ participants, currency, onCancel, onSave }: Expe
         return Number.isFinite(value) && value > 0
       }))
 
+  const isEditing = Boolean(initialExpense)
+
   return (
     <section className="surface view-section">
       <header className="section-header">
@@ -226,14 +295,16 @@ export function ExpenseEditor({ participants, currency, onCancel, onSave }: Expe
           ← Back
         </button>
         <div className="section-heading">
-          <h2 className="section-title">Add expense</h2>
+          <h2 className="section-title">{isEditing ? 'Edit expense' : 'Add expense'}</h2>
           <p className="section-subtitle">
-            Start with the basics, then we will layer in advanced splits next.
+            {isEditing
+              ? 'Update the details, who paid, or how the cost is split.'
+              : 'Start with the basics, then layer in advanced splits next.'}
           </p>
         </div>
         <div className="header-actions">
           <button className="primary-button" type="submit" form="expense-form" disabled={!isValid}>
-            Save draft
+            {isEditing ? 'Save changes' : 'Save expense'}
           </button>
         </div>
       </header>
@@ -366,16 +437,11 @@ export function ExpenseEditor({ participants, currency, onCancel, onSave }: Expe
             </div>
             <div className="totals-row">
               <span>
-                Entered total:{' '}
-                <strong>
-                  {currency} {totalExact.toFixed(2)}
-                </strong>
+                Entered total: <strong>{currencyFormatter.format(totalExact)}</strong>
               </span>
               <span className={Math.abs(exactDifference) < 0.02 ? 'positive' : 'negative'}>
                 Difference:{' '}
-                <strong>
-                  {currency} {exactDifference.toFixed(2)}
-                </strong>
+                <strong>{currencyFormatter.format(exactDifference)}</strong>
               </span>
             </div>
           </div>
@@ -399,7 +465,7 @@ export function ExpenseEditor({ participants, currency, onCancel, onSave }: Expe
                 const participant = participants.find((person) => person.id === share.participantId)
                 return (
                   <li key={share.participantId}>
-                    {participant?.name ?? share.participantId}: {currency} {share.amount.toFixed(2)}
+                    {participant?.name ?? share.participantId}: {currencyFormatter.format(share.amount)}
                   </li>
                 )
               })}
