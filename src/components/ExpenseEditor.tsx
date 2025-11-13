@@ -327,6 +327,7 @@ export function ExpenseEditor({ participants, currency, onCancel, onSave, initia
             type="number"
             min="0"
             step="0.01"
+            inputMode="decimal"
             value={amount}
             placeholder="0.00"
             onChange={(event) => setAmount(event.target.value)}
@@ -402,6 +403,7 @@ export function ExpenseEditor({ participants, currency, onCancel, onSave, initia
                     type="number"
                     min="0"
                     step="0.1"
+                    inputMode="decimal"
                     value={weights[participant.id] ?? '1'}
                     onChange={(event: ChangeEvent<HTMLInputElement>) =>
                       handleWeightChange(participant.id, event.target.value)
@@ -427,6 +429,7 @@ export function ExpenseEditor({ participants, currency, onCancel, onSave, initia
                     type="number"
                     min="0"
                     step="0.01"
+                    inputMode="decimal"
                     value={amounts[participant.id] ?? '0'}
                     onChange={(event: ChangeEvent<HTMLInputElement>) =>
                       handleExactAmountChange(participant.id, event.target.value)
@@ -472,6 +475,12 @@ export function ExpenseEditor({ participants, currency, onCancel, onSave, initia
             </ul>
           </aside>
         )}
+
+        <div className="form-footer">
+          <button className="primary-button" type="submit" disabled={!isValid}>
+            {isEditing ? 'Save changes' : 'Save expense'}
+          </button>
+        </div>
       </form>
     </section>
   )

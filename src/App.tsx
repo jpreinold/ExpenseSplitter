@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import './App.css'
 import { EventDetail } from './components/EventDetail'
 import { EventCreateModal } from './components/EventCreateModal'
@@ -23,6 +23,17 @@ function App() {
   const [confirmState, setConfirmState] = useState<(ConfirmationOptions & { resolve: (value: boolean) => void }) | null>(
     null,
   )
+
+  useEffect(() => {
+    const body = document.body
+    if (!body) return
+    body.style.setProperty('overscroll-behavior-y', 'auto')
+    body.style.setProperty('-webkit-overflow-scrolling', 'touch')
+    return () => {
+      body.style.removeProperty('overscroll-behavior-y')
+      body.style.removeProperty('-webkit-overflow-scrolling')
+    }
+  }, [])
 
   const selectedEventId = state.lastViewedEventId ?? events[0]?.id ?? null
 

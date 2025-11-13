@@ -143,6 +143,17 @@
   gap: 0.35rem;
 }
 
+.section-heading--event {
+  gap: 0.75rem;
+}
+
+.section-heading__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
 .section-title {
   margin: 0;
   font-size: 1.5rem;
@@ -273,6 +284,12 @@
   justify-content: space-between;
   align-items: center;
   gap: 1rem;
+}
+
+.panel-heading__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 .panel-heading h3 {
@@ -787,6 +804,15 @@
   color: #b91c1c;
 }
 
+.icon-button--primary {
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  color: #fff;
+}
+
+.icon-button--primary:hover {
+  box-shadow: 0 10px 20px rgba(37, 99, 235, 0.25);
+}
+
 .modal-overlay {
   position: fixed;
   inset: 0;
@@ -861,6 +887,12 @@
   justify-content: flex-end;
   gap: 0.75rem;
   margin-top: 0.5rem;
+}
+
+.form-footer {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 1rem;
 }
 
 @media (max-width: 640px) {

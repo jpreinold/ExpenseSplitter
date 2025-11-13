@@ -24,6 +24,8 @@ body {
   min-width: 320px;
   min-height: 100vh;
   background: linear-gradient(180deg, #eff6ff 0%, #f8fafc 100%);
+  overscroll-behavior-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 #root {

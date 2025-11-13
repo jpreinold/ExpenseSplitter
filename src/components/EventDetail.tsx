@@ -35,7 +35,7 @@ type EventDetailProps = {
   onRemoveParticipant: (participantId: string) => void
   onRemoveExpense: (expenseId: string) => void
   onEditExpense: (expenseId: string) => void
-  onDeleteEvent: () => void
+  onDeleteEvent: () => void | Promise<void>
   requestConfirmation: (options: ConfirmationOptions) => Promise<boolean>
 }
 
@@ -94,8 +94,20 @@ export function EventDetail({
         <button className="ghost-button" onClick={onBack}>
           ← Events
         </button>
-        <div className="section-heading">
-          <h2 className="section-title">{name}</h2>
+        <div className="section-heading section-heading--event">
+          <div className="section-heading__row">
+            <h2 className="section-title">{name}</h2>
+            <button
+              type="button"
+              className="icon-button icon-button--danger"
+              aria-label="Delete event"
+              onClick={() => {
+                void onDeleteEvent()
+              }}
+            >
+              <span aria-hidden>×</span>
+            </button>
+          </div>
           <div className="meta">
             {dateRange && <span>{dateRange}</span>}
             {location && <span>{location}</span>}
@@ -105,11 +117,8 @@ export function EventDetail({
           </div>
         </div>
         <div className="header-actions">
-          <button className="ghost-button ghost-button--danger" type="button" onClick={onDeleteEvent}>
-            Delete event
-          </button>
           <button className="ghost-button" onClick={onShowSummary}>
-            View summary
+            <strong>Settle</strong>
           </button>
           <button className="primary-button" onClick={onAddExpense}>
             Add expense
@@ -169,7 +178,17 @@ export function EventDetail({
       <section aria-labelledby="expenses-heading">
         <div className="panel-heading">
           <h3 id="expenses-heading">Expenses</h3>
-          <span className="badge">{expenses.length}</span>
+          <div className="panel-heading__actions">
+            <span className="badge">{expenses.length}</span>
+            <button
+              type="button"
+              className="icon-button icon-button--primary"
+              aria-label="Add expense"
+              onClick={onAddExpense}
+            >
+              <span aria-hidden>+</span>
+            </button>
+          </div>
         </div>
 
         {expenses.length === 0 ? (
