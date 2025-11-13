@@ -13,9 +13,10 @@ type EventListProps = {
   events: EventPreview[]
   onSelect: (eventId: string) => void
   onCreate: () => void
+  onDelete: (eventId: string) => void
 }
 
-export function EventList({ events, onSelect, onCreate }: EventListProps) {
+export function EventList({ events, onSelect, onCreate, onDelete }: EventListProps) {
   return (
     <section className="surface view-section">
       <header className="section-header">
@@ -38,40 +39,53 @@ export function EventList({ events, onSelect, onCreate }: EventListProps) {
       ) : (
         <div className="event-list">
           {events.map((event) => (
-            <button
-              key={event.id}
-              className="event-card"
-              onClick={() => onSelect(event.id)}
-            >
-              <div className="event-card__header">
-                <h3>{event.name}</h3>
-                <span className="badge">
-                  {event.participantCount} {event.participantCount === 1 ? 'person' : 'people'}
-                </span>
-              </div>
-              <dl>
-                {event.dateRange && (
-                  <div>
-                    <dt>Date</dt>
-                    <dd>{event.dateRange}</dd>
-                  </div>
-                )}
-                {event.location && (
-                  <div>
-                    <dt>Location</dt>
-                    <dd>{event.location}</dd>
-                  </div>
-                )}
-                <div>
-                  <dt>Expenses</dt>
-                  <dd>{event.expenseCount}</dd>
+            <div key={event.id} className="event-card">
+              <button
+                type="button"
+                className="event-card__body"
+                onClick={() => onSelect(event.id)}
+              >
+                <div className="event-card__header">
+                  <h3>{event.name}</h3>
+                  <span className="badge">
+                    {event.participantCount} {event.participantCount === 1 ? 'person' : 'people'}
+                  </span>
                 </div>
-                <div>
-                  <dt>Total</dt>
-                  <dd>{event.formattedTotal}</dd>
-                </div>
-              </dl>
-            </button>
+                <dl>
+                  {event.dateRange && (
+                    <div>
+                      <dt>Date</dt>
+                      <dd>{event.dateRange}</dd>
+                    </div>
+                  )}
+                  {event.location && (
+                    <div>
+                      <dt>Location</dt>
+                      <dd>{event.location}</dd>
+                    </div>
+                  )}
+                  <div>
+                    <dt>Expenses</dt>
+                    <dd>{event.expenseCount}</dd>
+                  </div>
+                  <div>
+                    <dt>Total</dt>
+                    <dd>{event.formattedTotal}</dd>
+                  </div>
+                </dl>
+              </button>
+              <button
+                type="button"
+                className="icon-button icon-button--danger event-card__delete"
+                aria-label={`Delete ${event.name}`}
+                onClick={(eventInstance) => {
+                  eventInstance.stopPropagation()
+                  onDelete(event.id)
+                }}
+              >
+                <span aria-hidden>×</span>
+              </button>
+            </div>
           ))}
         </div>
       )}

@@ -8,6 +8,8 @@ import { Summary } from './components/Summary'
 import { useLocalStore } from './state/useLocalStore'
 import type { EventDraft, ExpenseDraft } from './state/useLocalStore'
 import { calculateEventBalances, describeSplit, suggestSettlements } from './utils/calculations'
+import { ConfirmDialog } from './components/ConfirmDialog'
+import type { ConfirmationOptions } from './components/ConfirmDialog'
 
 type ViewMode = 'events' | 'detail' | 'summary' | 'editor'
 
@@ -18,6 +20,9 @@ function App() {
   const [view, setView] = useState<ViewMode>('events')
   const [isCreateEventModalOpen, setIsCreateEventModalOpen] = useState(false)
   const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null)
+  const [confirmState, setConfirmState] = useState<(ConfirmationOptions & { resolve: (value: boolean) => void }) | null>(
+    null,
+  )
 
   const selectedEventId = state.lastViewedEventId ?? events[0]?.id ?? null
 
@@ -165,6 +170,24 @@ function App() {
     setIsCreateEventModalOpen(false)
   }
 
+  const requestConfirmation = (options: ConfirmationOptions) => {
+    return new Promise<boolean>((resolve) => {
+      setConfirmState({ ...options, resolve })
+    })
+  }
+
+  const handleConfirmAccept = () => {
+    if (!confirmState) return
+    confirmState.resolve(true)
+    setConfirmState(null)
+  }
+
+  const handleConfirmCancel = () => {
+    if (!confirmState) return
+    confirmState.resolve(false)
+    setConfirmState(null)
+  }
+
   const handleAddExpense = () => {
     setEditingExpenseId(null)
     setView('editor')
@@ -175,13 +198,33 @@ function App() {
     setView('editor')
   }
 
+  const handleDeleteEvent = async (eventId: string) => {
+    const eventToDelete = events.find((eventItem) => eventItem.id === eventId)
+    const confirmed = await requestConfirmation({
+      title: 'Delete event',
+      message: `Delete "${eventToDelete?.name ?? 'this event'}"? This will remove all participants and expenses.`,
+      confirmLabel: 'Delete event',
+      cancelLabel: 'Keep event',
+      tone: 'danger',
+    })
+    if (!confirmed) {
+      return
+    }
+
+    actions.deleteEvent(eventId)
+    if (selectedEventId === eventId) {
+      setView('events')
+      setEditingExpenseId(null)
+    }
+  }
+
   const activeView = selectedEvent ? view : 'events'
 
   return (
     <div className="app-shell">
       <header className="app-header">
         <div>
-          <h1 className="app-title">Split Expense</h1>
+          <h1 className="app-title">Expense Splitter</h1>
           <p className="app-subtitle">A lightweight PWA to split group trips, weekends, and celebrations.</p>
         </div>
         <nav className="pill-nav" aria-label="Primary views">
@@ -215,7 +258,12 @@ function App() {
 
       <main className="view-container">
         {activeView === 'events' && (
-          <EventList events={eventList} onSelect={handleSelectEvent} onCreate={handleOpenCreateEventModal} />
+          <EventList
+            events={eventList}
+            onSelect={handleSelectEvent}
+            onCreate={handleOpenCreateEventModal}
+            onDelete={handleDeleteEvent}
+          />
         )}
 
         {activeView === 'detail' && selectedEvent ? (
@@ -241,6 +289,8 @@ function App() {
             onRemoveParticipant={handleRemoveParticipantFromEvent}
             onRemoveExpense={handleRemoveExpense}
             onEditExpense={handleEditExpense}
+            onDeleteEvent={() => handleDeleteEvent(selectedEvent.id)}
+            requestConfirmation={requestConfirmation}
           />
         ) : null}
 
@@ -280,6 +330,17 @@ function App() {
         isOpen={isCreateEventModalOpen}
         onClose={handleCloseCreateEventModal}
         onCreate={handleCreateEvent}
+      />
+
+      <ConfirmDialog
+        isOpen={Boolean(confirmState)}
+        onCancel={handleConfirmCancel}
+        onConfirm={handleConfirmAccept}
+        title={confirmState?.title ?? ''}
+        message={confirmState?.message ?? ''}
+        confirmLabel={confirmState?.confirmLabel}
+        cancelLabel={confirmState?.cancelLabel}
+        tone={confirmState?.tone}
       />
     </div>
   )

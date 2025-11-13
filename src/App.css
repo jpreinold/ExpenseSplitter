@@ -180,8 +180,13 @@
 }
 
 .event-card {
+  position: relative;
+}
+
+.event-card__body {
   text-align: left;
   padding: 1.25rem 1.5rem;
+  padding-right: 4rem;
   border: 1px solid rgba(148, 163, 184, 0.25);
   border-radius: 16px;
   background: rgba(248, 250, 252, 0.9);
@@ -190,12 +195,43 @@
   gap: 1.25rem;
   color: inherit;
   transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  width: 100%;
 }
 
-.event-card:hover {
+.event-card__body:hover {
   transform: translateY(-2px);
   border-color: rgba(37, 99, 235, 0.35);
   box-shadow: 0 12px 30px rgba(37, 99, 235, 0.15);
+}
+
+.event-card__body:focus-visible {
+  outline: none;
+  border-color: rgba(37, 99, 235, 0.6);
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.2);
+}
+
+.event-card__delete {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+}
+
+.primary-button--danger {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+}
+
+.primary-button--danger:hover {
+  box-shadow: 0 10px 20px rgba(220, 38, 38, 0.25);
+}
+
+.modal--confirm {
+  width: min(440px, 100%);
+  gap: 0.75rem;
+}
+
+.modal--confirm .modal__header p {
+  color: #475569;
+  margin-top: 0.5rem;
 }
 
 .event-card__header {

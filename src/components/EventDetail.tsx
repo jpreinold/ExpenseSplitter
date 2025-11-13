@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
+import type { ConfirmationOptions } from './ConfirmDialog'
 
 type ParticipantProfile = {
   id: string
@@ -34,6 +35,8 @@ type EventDetailProps = {
   onRemoveParticipant: (participantId: string) => void
   onRemoveExpense: (expenseId: string) => void
   onEditExpense: (expenseId: string) => void
+  onDeleteEvent: () => void
+  requestConfirmation: (options: ConfirmationOptions) => Promise<boolean>
 }
 
 export function EventDetail({
@@ -51,6 +54,8 @@ export function EventDetail({
   onRemoveParticipant,
   onRemoveExpense,
   onEditExpense,
+  onDeleteEvent,
+  requestConfirmation,
 }: EventDetailProps) {
   const [participantName, setParticipantName] = useState('')
   const totalFormatted = useMemo(
@@ -70,10 +75,17 @@ export function EventDetail({
     setParticipantName('')
   }
 
-  const handleRemoveParticipant = (participantId: string) => {
-    if (window.confirm('Remove this participant from the event? They will be removed from splits.')) {
-      onRemoveParticipant(participantId)
-    }
+  const handleRemoveParticipant = async (participantId: string, participantName: string) => {
+    const confirmed = await requestConfirmation({
+      title: 'Remove participant',
+      message: `Remove ${participantName} from this event? They will be taken out of any expense splits.`,
+      confirmLabel: 'Remove participant',
+      cancelLabel: 'Keep participant',
+      tone: 'danger',
+    })
+    if (!confirmed) return
+
+    onRemoveParticipant(participantId)
   }
 
   return (
@@ -93,6 +105,9 @@ export function EventDetail({
           </div>
         </div>
         <div className="header-actions">
+          <button className="ghost-button ghost-button--danger" type="button" onClick={onDeleteEvent}>
+            Delete event
+          </button>
           <button className="ghost-button" onClick={onShowSummary}>
             View summary
           </button>
@@ -139,7 +154,9 @@ export function EventDetail({
                   aria-label={`Remove ${participant.name}`}
                   type="button"
                   className="icon-button icon-button--danger"
-                  onClick={() => handleRemoveParticipant(participant.id)}
+                  onClick={() => {
+                    void handleRemoveParticipant(participant.id, participant.name)
+                  }}
                 >
                   <span aria-hidden>×</span>
                 </button>
@@ -191,11 +208,17 @@ export function EventDetail({
                     className="icon-button icon-button--danger expense-card__remove"
                     type="button"
                     aria-label="Remove expense"
-                    onClick={(event) => {
+                    onClick={async (event) => {
                       event.stopPropagation()
-                      if (window.confirm('Remove this expense? You can’t undo this yet.')) {
-                        onRemoveExpense(expense.id)
-                      }
+                      const confirmed = await requestConfirmation({
+                        title: 'Remove expense',
+                        message: 'Remove this expense? This action cannot be undone.',
+                        confirmLabel: 'Remove expense',
+                        cancelLabel: 'Keep expense',
+                        tone: 'danger',
+                      })
+                      if (!confirmed) return
+                      onRemoveExpense(expense.id)
                     }}
                   >
                     <span aria-hidden>×</span>

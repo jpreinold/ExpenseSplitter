@@ -388,90 +388,10 @@ function persistState(state: SplitState) {
 }
 
 function createDemoState(): SplitState {
-  const demoEvent = createEventEntity({
-    name: 'Lake House Bachelor Weekend',
-    location: 'Lake Geneva, WI',
-    startDate: '2025-06-12',
-    endDate: '2025-06-15',
-    currency: 'USD',
-    participants: [
-      { id: 'alex', name: 'Alex' },
-      { id: 'harper', name: 'Harper' },
-      { id: 'jordan', name: 'Jordan' },
-      { id: 'sam', name: 'Sam' },
-    ],
-  })
-
-  const [alex, harper, jordan, sam] = demoEvent.participants
-
-  const eventWithExpenses: Event = { ...demoEvent, expenses: [] }
-
-  eventWithExpenses.expenses.push(
-    createExpense(demoEvent.currency, {
-      id: 'exp-cabin',
-      description: 'Cabin rental',
-      amount: 1280,
-      paidBy: [{ participantId: harper.id, amount: 1280 }],
-      split: {
-        type: 'even',
-        participantIds: [alex.id, harper.id, jordan.id, sam.id],
-      },
-      createdAt: demoEvent.startDate ? new Date(demoEvent.startDate).toISOString() : undefined,
-    }),
-  )
-
-  eventWithExpenses.expenses.push(
-    createExpense(demoEvent.currency, {
-      id: 'exp-groceries',
-      description: 'Weekend groceries',
-      amount: 320,
-      paidBy: [{ participantId: alex.id, amount: 320 }],
-      split: {
-        type: 'shares',
-        shares: [
-          { participantId: alex.id, weight: 2 },
-          { participantId: harper.id, weight: 1 },
-          { participantId: jordan.id, weight: 1 },
-          { participantId: sam.id, weight: 1 },
-        ],
-      },
-    }),
-  )
-
-  eventWithExpenses.expenses.push(
-    createExpense(demoEvent.currency, {
-      id: 'exp-boat',
-      description: 'Boat rental',
-      amount: 480,
-      paidBy: [{ participantId: jordan.id, amount: 480 }],
-      split: {
-        type: 'even',
-        participantIds: [alex.id, jordan.id, sam.id],
-      },
-    }),
-  )
-
-  eventWithExpenses.expenses.push(
-    createExpense(demoEvent.currency, {
-      id: 'exp-gas',
-      description: 'Gas for shared SUV',
-      amount: 90,
-      paidBy: [{ participantId: sam.id, amount: 90 }],
-      split: {
-        type: 'exact',
-        allocations: [
-          { participantId: alex.id, amount: 20 },
-          { participantId: jordan.id, amount: 35 },
-          { participantId: sam.id, amount: 35 },
-        ],
-      },
-    }),
-  )
-
   return {
     version: CURRENT_VERSION,
-    lastViewedEventId: eventWithExpenses.id,
-    events: [eventWithExpenses],
+    lastViewedEventId: undefined,
+    events: [],
   }
 }
 

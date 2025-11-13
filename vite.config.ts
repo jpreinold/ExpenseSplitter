@@ -10,8 +10,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'icons/icon.svg'],
       manifest: {
-        name: 'Split Expense',
-        short_name: 'SplitExpense',
+        name: 'Expense Splitter',
+        short_name: 'Expense Splitter',
         description: 'Track shared event expenses and splits offline.',
         start_url: '/',
         display: 'standalone',
