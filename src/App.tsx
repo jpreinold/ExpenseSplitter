@@ -92,21 +92,24 @@ function App() {
         style: 'currency',
         currency: selectedEvent.currency,
       })
-    return eventExpenses.map((expense) => ({
-      id: expense.id,
-      description: expense.description,
-      amount: expense.amount,
-      formattedAmount: formatter ? formatter.format(expense.amount) : expense.amount.toFixed(2),
-      date: expense.createdAt ? new Date(expense.createdAt).toLocaleDateString() : undefined,
-      notes: expense.notes,
-      paidBy: expense.paidBy.map((allocation) => {
-        const participant = participantMap.get(allocation.participantId)
-        const name = participant?.name ?? 'Unknown'
-        const formatted = formatter ? formatter.format(allocation.amount) : allocation.amount.toFixed(2)
-        return `${name} (${formatted})`
-      }),
-      splitSummary: describeSplit(expense, participantMap),
-    }))
+    return eventExpenses.map((expense) => {
+      const note = expense.notes?.trim()
+      return {
+        id: expense.id,
+        description: expense.description,
+        amount: expense.amount,
+        formattedAmount: formatter ? formatter.format(expense.amount) : expense.amount.toFixed(2),
+        date: expense.createdAt ? new Date(expense.createdAt).toLocaleDateString() : undefined,
+        notes: note ? note : undefined,
+        paidBy: expense.paidBy.map((allocation) => {
+          const participant = participantMap.get(allocation.participantId)
+          const name = participant?.name ?? 'Unknown'
+          const formatted = formatter ? formatter.format(allocation.amount) : allocation.amount.toFixed(2)
+          return `${name} (${formatted})`
+        }),
+        splitSummary: describeSplit(expense, participantMap),
+      }
+    })
   }, [eventExpenses, participantMap, selectedEvent])
 
   const summary = useMemo(() => {
