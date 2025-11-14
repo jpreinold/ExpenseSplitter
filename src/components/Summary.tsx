@@ -58,7 +58,7 @@ export function Summary({ eventName, totals, balances, settlements, onBack, curr
           </div>
           {balances.map((row) => (
             <div key={row.id} className="balance-table__row">
-              <span>{row.name}</span>
+              <span className={row.balance >= 0 ? 'positive' : 'negative'}>{row.name}</span>
               <span>{formatter.format(row.paid)}</span>
               <span>{formatter.format(row.owes)}</span>
               <span className={row.balance >= 0 ? 'positive' : 'negative'}>
@@ -72,7 +72,7 @@ export function Summary({ eventName, totals, balances, settlements, onBack, curr
 
       <section aria-labelledby="settlements-heading">
         <div className="panel-heading">
-          <h3 id="settlements-heading">Suggested settlements</h3>
+          <h3 id="settlements-heading">Settlements</h3>
         </div>
 
         {settlements.length === 0 ? (
@@ -83,11 +83,13 @@ export function Summary({ eventName, totals, balances, settlements, onBack, curr
         ) : (
           <ul className="settlement-list">
             {settlements.map((settlement, index) => (
-              <li key={`${settlement.from}-${settlement.to}-${index}`}>
-                <span className="settlement-from">{settlement.from}</span>
-                <span className="settlement-arrow">→</span>
-                <span className="settlement-to">{settlement.to}</span>
-                <span className="settlement-amount">{formatter.format(settlement.amount)}</span>
+              <li key={`${settlement.from}-${settlement.to}-${index}`} className="settlement-item">
+                <span className="settlement-sentence">
+                  <span className="settlement-name">{settlement.from}</span>
+                  <span className="settlement-verb">pays</span>
+                  <span className="settlement-name">{settlement.to}</span>
+                  <span className="settlement-amount">{formatter.format(Math.abs(settlement.amount))}</span>
+                </span>
               </li>
             ))}
           </ul>

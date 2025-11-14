@@ -222,34 +222,36 @@ export function EventDetail({
                     <div className="expense-card__title-row">
                       <p className="expense-title">{expense.description}</p>
                       {expense.notes ? (
-                        <button
-                          type="button"
-                          className="icon-button icon-button--info expense-note-button"
-                          aria-label={`Show notes for ${expense.description}`}
-                          aria-expanded={openNoteId === expense.id}
-                          aria-controls={`expense-note-${expense.id}`}
-                          onClick={(event) => {
-                            event.stopPropagation()
-                            setOpenNoteId((current) => (current === expense.id ? null : expense.id))
-                          }}
-                        >
-                          i
-                        </button>
+                        <div className="expense-note-anchor">
+                          <button
+                            type="button"
+                            className="ghost-button ghost-button--small expense-note-button"
+                            aria-label={`Show notes for ${expense.description}`}
+                            aria-expanded={openNoteId === expense.id}
+                            aria-controls={`expense-note-${expense.id}`}
+                            onClick={(event) => {
+                              event.stopPropagation()
+                              setOpenNoteId((current) => (current === expense.id ? null : expense.id))
+                            }}
+                          >
+                            i
+                          </button>
+                          {openNoteId === expense.id ? (
+                            <div className="expense-note-popover" id={`expense-note-${expense.id}`} role="dialog">
+                              <div className="expense-note-popover__content">{expense.notes}</div>
+                            </div>
+                          ) : null}
+                        </div>
                       ) : null}
                     </div>
                     <p className="expense-meta">
                       Paid by {expense.paidBy.join(', ')}
                       {expense.date ? ` • ${expense.date}` : ''}
                     </p>
-                    {expense.notes && openNoteId === expense.id ? (
-                      <div className="expense-note-popover" id={`expense-note-${expense.id}`} role="status">
-                        {expense.notes}
-                      </div>
-                    ) : null}
                   </div>
                   <div className="expense-amount">
                     <span>{expense.formattedAmount}</span>
-                    <small>{expense.splitSummary}</small>
+                    <small>{expense.splitSummary.replace(/\s*\(.*\)\s*$/, '')}</small>
                   </div>
                   <button
                     className="icon-button icon-button--danger expense-card__remove"

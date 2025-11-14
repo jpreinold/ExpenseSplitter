@@ -47,8 +47,9 @@ export function EventList({ events, onSelect, onCreate, onDelete }: EventListPro
               >
                 <div className="event-card__header">
                   <h3>{event.name}</h3>
-                  <span className="badge">
-                    {event.participantCount} {event.participantCount === 1 ? 'person' : 'people'}
+                  <span className="event-card__pill">
+                    <span>{event.participantCount}</span>
+                    <span>{event.participantCount === 1 ? 'person' : 'people'}</span>
                   </span>
                 </div>
                 <dl>
