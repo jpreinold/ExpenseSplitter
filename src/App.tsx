@@ -239,7 +239,7 @@ function App() {
     <div className="app-shell">
       <header className="app-header">
         <div>
-          <h1 className="app-title">Expense Splitter</h1>
+          <h1 className="app-title">Expense Settler</h1>
           <p className="app-subtitle">A lightweight PWA to split group trips, weekends, and celebrations.</p>
         </div>
         <nav className="pill-nav" aria-label="Primary views">
