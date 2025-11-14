@@ -5,6 +5,7 @@ import { EventCreateModal } from './components/EventCreateModal'
 import { EventList } from './components/EventList'
 import { ExpenseEditor } from './components/ExpenseEditor'
 import { Summary } from './components/Summary'
+import { SettlementDetailModal } from './components/SettlementDetailModal'
 import { useLocalStore } from './state/useLocalStore'
 import type { EventDraft, ExpenseDraft } from './state/useLocalStore'
 import { calculateEventBalances, describeSplit, suggestSettlements } from './utils/calculations'
@@ -20,6 +21,7 @@ function App() {
   const [view, setView] = useState<ViewMode>('events')
   const [isCreateEventModalOpen, setIsCreateEventModalOpen] = useState(false)
   const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null)
+  const [openSettlement, setOpenSettlement] = useState<{ fromId: string; toId: string } | null>(null)
   const [confirmState, setConfirmState] = useState<(ConfirmationOptions & { resolve: (value: boolean) => void }) | null>(
     null,
   )
@@ -134,11 +136,22 @@ function App() {
       }
     })
 
-    const settlements = suggestSettlements(balances).map((settlement) => ({
-      from: participantMap.get(settlement.from)?.name ?? 'Unknown',
-      to: participantMap.get(settlement.to)?.name ?? 'Unknown',
-      amount: settlement.amount,
-    }))
+    const settlementTracking = selectedEvent.settlementTracking ?? []
+    const settlements = suggestSettlements(balances).map((settlement) => {
+      const tracking = settlementTracking.find(
+        (t) => t.fromParticipantId === settlement.from && t.toParticipantId === settlement.to,
+      )
+      const totalPaid = tracking?.payments.reduce((sum, p) => sum + p.amount, 0) ?? 0
+      const isComplete = totalPaid >= settlement.amount - 0.01 // Allow small floating point differences
+      return {
+        from: participantMap.get(settlement.from)?.name ?? 'Unknown',
+        to: participantMap.get(settlement.to)?.name ?? 'Unknown',
+        fromId: settlement.from,
+        toId: settlement.to,
+        amount: settlement.amount,
+        isComplete,
+      }
+    })
 
     return { totals, balances: balanceRows, settlements }
   }, [participantMap, selectedEvent])
@@ -232,6 +245,59 @@ function App() {
       setEditingExpenseId(null)
     }
   }
+
+  const handleSettlementClick = (fromId: string, toId: string) => {
+    if (!selectedEvent) return
+    setOpenSettlement({ fromId, toId })
+  }
+
+  const handleCloseSettlementModal = () => {
+    setOpenSettlement(null)
+  }
+
+  const openSettlementData = useMemo(() => {
+    if (!selectedEvent || !openSettlement) return null
+
+    const settlement = summary.settlements.find(
+      (s) => s.fromId === openSettlement.fromId && s.toId === openSettlement.toId,
+    )
+    if (!settlement) return null
+
+    const tracking = selectedEvent.settlementTracking?.find(
+      (t) => t.fromParticipantId === openSettlement.fromId && t.toParticipantId === openSettlement.toId,
+    ) ?? {
+      payments: [],
+      markedComplete: false,
+    }
+
+    return {
+      settlement,
+      tracking,
+    }
+  }, [selectedEvent, openSettlement, summary.settlements])
+
+  const handleAddSettlementPayment = (amount: number) => {
+    if (!selectedEvent || !openSettlement || !openSettlementData) return
+    actions.addSettlementPayment(
+      selectedEvent.id,
+      openSettlement.fromId,
+      openSettlement.toId,
+      amount,
+      openSettlementData.settlement.amount,
+    )
+  }
+
+  const handleRemoveSettlementPayment = (paymentId: string) => {
+    if (!selectedEvent || !openSettlement || !openSettlementData) return
+    actions.removeSettlementPayment(
+      selectedEvent.id,
+      openSettlement.fromId,
+      openSettlement.toId,
+      paymentId,
+      openSettlementData.settlement.amount,
+    )
+  }
+
 
   const activeView = selectedEvent ? view : 'events'
 
@@ -330,6 +396,7 @@ function App() {
             settlements={summary.settlements}
             onBack={() => setView('detail')}
             currency={selectedEvent.currency}
+            onSettlementClick={handleSettlementClick}
           />
         ) : null}
       </main>
@@ -357,6 +424,20 @@ function App() {
         cancelLabel={confirmState?.cancelLabel}
         tone={confirmState?.tone}
       />
+
+      {openSettlementData && (
+        <SettlementDetailModal
+          isOpen={Boolean(openSettlement)}
+          onClose={handleCloseSettlementModal}
+          fromName={openSettlementData.settlement.from}
+          toName={openSettlementData.settlement.to}
+          settlementAmount={openSettlementData.settlement.amount}
+          currency={selectedEvent?.currency ?? 'USD'}
+          tracking={openSettlementData.tracking}
+          onAddPayment={handleAddSettlementPayment}
+          onRemovePayment={handleRemoveSettlementPayment}
+        />
+      )}
     </div>
   )
 }

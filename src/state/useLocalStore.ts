@@ -7,6 +7,8 @@ import type {
   Participant,
   ParticipantId,
   PayerAllocation,
+  SettlementPayment,
+  SettlementTracking,
   SplitInstruction,
   SplitState,
   SplitStrategy,
@@ -57,6 +59,9 @@ type Action =
   | { type: 'remove-participant'; eventId: EventId; participantId: ParticipantId }
   | { type: 'upsert-expense'; eventId: EventId; expense: Expense }
   | { type: 'remove-expense'; eventId: EventId; expenseId: ExpenseId }
+  | { type: 'add-settlement-payment'; eventId: EventId; fromId: ParticipantId; toId: ParticipantId; amount: number; settlementAmount: number }
+  | { type: 'remove-settlement-payment'; eventId: EventId; fromId: ParticipantId; toId: ParticipantId; paymentId: string; settlementAmount: number }
+  | { type: 'mark-settlement-complete'; eventId: EventId; fromId: ParticipantId; toId: ParticipantId; complete: boolean }
 
 function createId(prefix: string) {
   const random = cryptoRandomId()
@@ -236,6 +241,52 @@ function ensureEventUpdated(event: Event): Event {
   return { ...event, updatedAt: nowIso() }
 }
 
+function getOrCreateSettlementTracking(
+  event: Event,
+  fromId: ParticipantId,
+  toId: ParticipantId,
+): SettlementTracking {
+  const tracking = event.settlementTracking?.find(
+    (t) => t.fromParticipantId === fromId && t.toParticipantId === toId,
+  )
+  if (tracking) {
+    return tracking
+  }
+  return {
+    fromParticipantId: fromId,
+    toParticipantId: toId,
+    payments: [],
+    markedComplete: false,
+  }
+}
+
+function updateSettlementTracking(
+  event: Event,
+  fromId: ParticipantId,
+  toId: ParticipantId,
+  updater: (tracking: SettlementTracking) => SettlementTracking,
+): Event {
+  const currentTracking = event.settlementTracking ?? []
+  const existingIndex = currentTracking.findIndex(
+    (t) => t.fromParticipantId === fromId && t.toParticipantId === toId,
+  )
+
+  let updatedTracking: SettlementTracking[]
+  if (existingIndex >= 0) {
+    updatedTracking = currentTracking.map((t, idx) =>
+      idx === existingIndex ? updater(t) : t,
+    )
+  } else {
+    const newTracking = updater(getOrCreateSettlementTracking(event, fromId, toId))
+    updatedTracking = [...currentTracking, newTracking]
+  }
+
+  return ensureEventUpdated({
+    ...event,
+    settlementTracking: updatedTracking,
+  })
+}
+
 function reducer(state: SplitState, action: Action): SplitState {
   switch (action.type) {
     case 'replace':
@@ -311,6 +362,7 @@ function reducer(state: SplitState, action: Action): SplitState {
         return ensureEventUpdated({
           ...event,
           expenses,
+          settlementTracking: [], // Clear settlement tracking when expenses change
         })
       })
       return { ...state, events }
@@ -322,7 +374,60 @@ function reducer(state: SplitState, action: Action): SplitState {
         return ensureEventUpdated({
           ...event,
           expenses,
+          settlementTracking: [], // Clear settlement tracking when expenses change
         })
+      })
+      return { ...state, events }
+    }
+    case 'add-settlement-payment': {
+      const events = state.events.map((event) => {
+        if (event.id !== action.eventId) return event
+        return updateSettlementTracking(event, action.fromId, action.toId, (tracking) => {
+          const newPayments = [
+            ...tracking.payments,
+            {
+              id: createId('payment'),
+              amount: Number(action.amount.toFixed(2)),
+              paidAt: nowIso(),
+            },
+          ]
+          const totalPaid = newPayments.reduce((sum, p) => sum + p.amount, 0)
+          const isComplete = totalPaid >= action.settlementAmount - 0.01 // Allow small floating point differences
+          return {
+            ...tracking,
+            payments: newPayments,
+            markedComplete: isComplete,
+            markedCompleteAt: isComplete && !tracking.markedComplete ? nowIso() : tracking.markedCompleteAt,
+          }
+        })
+      })
+      return { ...state, events }
+    }
+    case 'remove-settlement-payment': {
+      const events = state.events.map((event) => {
+        if (event.id !== action.eventId) return event
+        return updateSettlementTracking(event, action.fromId, action.toId, (tracking) => {
+          const newPayments = tracking.payments.filter((p) => p.id !== action.paymentId)
+          const totalPaid = newPayments.reduce((sum, p) => sum + p.amount, 0)
+          const isComplete = totalPaid >= action.settlementAmount - 0.01 // Allow small floating point differences
+          return {
+            ...tracking,
+            payments: newPayments,
+            markedComplete: isComplete,
+            markedCompleteAt: isComplete ? tracking.markedCompleteAt : undefined,
+          }
+        })
+      })
+      return { ...state, events }
+    }
+    case 'mark-settlement-complete': {
+      const events = state.events.map((event) => {
+        if (event.id !== action.eventId) return event
+        return updateSettlementTracking(event, action.fromId, action.toId, (tracking) => ({
+          ...tracking,
+          markedComplete: action.complete,
+          markedCompleteAt: action.complete ? nowIso() : undefined,
+        }))
       })
       return { ...state, events }
     }
@@ -361,6 +466,15 @@ function migrateToLatest(state: Partial<SplitState>): SplitState {
         participantId: payer.participantId,
         amount: Number(payer.amount ?? 0),
       })),
+    })),
+    settlementTracking: (event.settlementTracking ?? []).map((tracking) => ({
+      ...tracking,
+      payments: (tracking.payments ?? []).map((payment) => ({
+        id: payment.id,
+        amount: Number(payment.amount ?? 0),
+        paidAt: payment.paidAt,
+      })),
+      markedComplete: tracking.markedComplete ?? false,
     })),
   }))
 
@@ -473,6 +587,27 @@ export function useLocalStore() {
     dispatch({ type: 'remove-expense', eventId, expenseId })
   }, [])
 
+  const addSettlementPayment = useCallback(
+    (eventId: EventId, fromId: ParticipantId, toId: ParticipantId, amount: number, settlementAmount: number) => {
+      dispatch({ type: 'add-settlement-payment', eventId, fromId, toId, amount, settlementAmount })
+    },
+    [],
+  )
+
+  const removeSettlementPayment = useCallback(
+    (eventId: EventId, fromId: ParticipantId, toId: ParticipantId, paymentId: string, settlementAmount: number) => {
+      dispatch({ type: 'remove-settlement-payment', eventId, fromId, toId, paymentId, settlementAmount })
+    },
+    [],
+  )
+
+  const markSettlementComplete = useCallback(
+    (eventId: EventId, fromId: ParticipantId, toId: ParticipantId, complete: boolean) => {
+      dispatch({ type: 'mark-settlement-complete', eventId, fromId, toId, complete })
+    },
+    [],
+  )
+
   const replaceState = useCallback((nextState: SplitState) => {
     dispatch({ type: 'replace', state: migrateToLatest(nextState) })
   }, [])
@@ -492,6 +627,9 @@ export function useLocalStore() {
       removeParticipant,
       upsertExpense,
       removeExpense,
+      addSettlementPayment,
+      removeSettlementPayment,
+      markSettlementComplete,
       replaceState,
       resetToDemo,
     },

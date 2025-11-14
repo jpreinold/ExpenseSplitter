@@ -66,6 +66,21 @@ export interface Event {
   archived?: boolean
   participants: Participant[]
   expenses: Expense[]
+  settlementTracking?: SettlementTracking[]
+}
+
+export interface SettlementPayment {
+  id: string
+  amount: number
+  paidAt: string
+}
+
+export interface SettlementTracking {
+  fromParticipantId: ParticipantId
+  toParticipantId: ParticipantId
+  payments: SettlementPayment[]
+  markedComplete: boolean
+  markedCompleteAt?: string
 }
 
 export interface SplitState {

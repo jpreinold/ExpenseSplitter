@@ -236,23 +236,52 @@ export function EventDetail({
                           >
                             i
                           </button>
-                          {openNoteId === expense.id ? (
-                            <div className="expense-note-popover" id={`expense-note-${expense.id}`} role="dialog">
-                              <div className="expense-note-popover__content">{expense.notes}</div>
-                            </div>
-                          ) : null}
                         </div>
                       ) : null}
                     </div>
-                    <p className="expense-meta">
-                      Paid by {expense.paidBy.join(', ')}
-                      {expense.date ? ` • ${expense.date}` : ''}
-                    </p>
+                    <div className="expense-meta">
+                      <div className="expense-meta__line">
+                        Paid by {expense.paidBy.map((payer) => payer.replace(/\s*\(.*?\)\s*$/, '')).join(', ')}
+                      </div>
+                      <div className="expense-meta__line">
+                        {(() => {
+                          const totalPaid = expense.paidBy.reduce((sum, payer) => {
+                            const match = payer.match(/\(([^)]+)\)/)
+                            if (match) {
+                              const amountStr = match[1].replace(/[^\d.-]/g, '')
+                              return sum + parseFloat(amountStr || '0')
+                            }
+                            return sum
+                          }, 0)
+                          return new Intl.NumberFormat(undefined, {
+                            style: 'currency',
+                            currency,
+                          }).format(totalPaid)
+                        })()}
+                      </div>
+                    </div>
                   </div>
                   <div className="expense-amount">
                     <span>{expense.formattedAmount}</span>
-                    <small>{expense.splitSummary.replace(/\s*\(.*\)\s*$/, '')}</small>
+                    <div className="expense-amount__meta">
+                      <div className="expense-amount__line">
+                        {(() => {
+                          const match = expense.splitSummary.match(/(\d+)\s+participants?/)
+                          if (!match) return ''
+                          const count = parseInt(match[1], 10)
+                          return `${count} ${count === 1 ? 'participant' : 'participants'}`
+                        })()}
+                      </div>
+                      <div className="expense-amount__line">
+                        {expense.splitSummary.split('·')[0]?.trim() || expense.splitSummary.split('•')[0]?.trim() || ''}
+                      </div>
+                    </div>
                   </div>
+                  {expense.notes && openNoteId === expense.id ? (
+                    <div className="expense-note-popover" id={`expense-note-${expense.id}`} role="dialog">
+                      <div className="expense-note-popover__content">{expense.notes}</div>
+                    </div>
+                  ) : null}
                   <button
                     className="icon-button icon-button--danger expense-card__remove"
                     type="button"

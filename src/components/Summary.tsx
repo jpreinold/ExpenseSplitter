@@ -9,7 +9,10 @@ type BalanceRow = {
 type Settlement = {
   from: string
   to: string
+  fromId: string
+  toId: string
   amount: number
+  isComplete?: boolean
 }
 
 type SummaryProps = {
@@ -22,9 +25,10 @@ type SummaryProps = {
   settlements: Settlement[]
   onBack: () => void
   currency: string
+  onSettlementClick?: (fromId: string, toId: string) => void
 }
 
-export function Summary({ eventName, totals, balances, settlements, onBack, currency }: SummaryProps) {
+export function Summary({ eventName, totals, balances, settlements, onBack, currency, onSettlementClick }: SummaryProps) {
   const formatter = new Intl.NumberFormat(undefined, {
     style: 'currency',
     currency,
@@ -57,11 +61,30 @@ export function Summary({ eventName, totals, balances, settlements, onBack, curr
           </div>
         ) : (
           <ul className="settlement-list">
-            {settlements.map((settlement, index) => {
+            {settlements.map((settlement) => {
               const amount = formatter.format(Math.abs(settlement.amount))
               const ariaLabel = `${settlement.from} pays ${settlement.to} ${amount}`
+              const isComplete = settlement.isComplete ?? false
+              const handleClick = () => {
+                if (onSettlementClick) {
+                  onSettlementClick(settlement.fromId, settlement.toId)
+                }
+              }
               return (
-                <li key={`${settlement.from}-${settlement.to}-${index}`} className="settlement-item">
+                <li
+                  key={`${settlement.fromId}-${settlement.toId}`}
+                  className={`settlement-item ${isComplete ? 'settlement-item--complete' : ''} ${onSettlementClick ? 'settlement-item--clickable' : ''}`}
+                  onClick={onSettlementClick ? handleClick : undefined}
+                  role={onSettlementClick ? 'button' : undefined}
+                  tabIndex={onSettlementClick ? 0 : undefined}
+                  onKeyDown={onSettlementClick ? (e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      handleClick()
+                    }
+                  } : undefined}
+                  aria-label={onSettlementClick ? `${ariaLabel}. Click to view details` : ariaLabel}
+                >
                   <span className="settlement-sentence" aria-label={ariaLabel}>
                     <span className="settlement-name">{settlement.from}</span>
                     <span className="settlement-arrow" aria-hidden="true">
