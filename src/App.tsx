@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import './App.css'
 import { EventDetail } from './components/EventDetail'
 import { EventCreateModal } from './components/EventCreateModal'
@@ -11,6 +11,7 @@ import type { EventDraft, ExpenseDraft } from './state/useLocalStore'
 import { calculateEventBalances, describeSplit, suggestSettlements } from './utils/calculations'
 import { ConfirmDialog } from './components/ConfirmDialog'
 import type { ConfirmationOptions } from './components/ConfirmDialog'
+import PullToRefresh from 'pulltorefreshjs'
 
 type ViewMode = 'events' | 'detail' | 'summary' | 'editor'
 
@@ -25,6 +26,8 @@ function App() {
   const [confirmState, setConfirmState] = useState<(ConfirmationOptions & { resolve: (value: boolean) => void }) | null>(
     null,
   )
+
+  const ptrInstanceRef = useRef<ReturnType<typeof PullToRefresh.init> | null>(null)
 
   useEffect(() => {
     const html = document.documentElement
@@ -42,6 +45,26 @@ function App() {
       html.style.removeProperty('-webkit-overflow-scrolling')
       body.style.removeProperty('overscroll-behavior-y')
       body.style.removeProperty('-webkit-overflow-scrolling')
+    }
+  }, [])
+
+  useEffect(() => {
+    // Initialize PullToRefresh
+    // Works in both regular browser and PWA standalone mode (especially useful for iOS PWA where native pull-to-refresh is disabled)
+    const ptr = PullToRefresh.init({
+      mainElement: 'body',
+      onRefresh() {
+        window.location.reload()
+      },
+    })
+
+    ptrInstanceRef.current = ptr
+
+    return () => {
+      if (ptrInstanceRef.current) {
+        ptrInstanceRef.current.destroy()
+        ptrInstanceRef.current = null
+      }
     }
   }, [])
 
