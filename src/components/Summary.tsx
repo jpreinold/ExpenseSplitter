@@ -45,6 +45,41 @@ export function Summary({ eventName, totals, balances, settlements, onBack, curr
         </div>
       </header>
 
+      <section aria-labelledby="settlements-heading">
+        <div className="panel-heading">
+          <h3 id="settlements-heading">Settlements</h3>
+        </div>
+
+        {settlements.length === 0 ? (
+          <div className="empty-state">
+            <strong>Everyone is square</strong>
+            No transfers needed—balances are already even.
+          </div>
+        ) : (
+          <ul className="settlement-list">
+            {settlements.map((settlement, index) => {
+              const amount = formatter.format(Math.abs(settlement.amount))
+              const ariaLabel = `${settlement.from} pays ${settlement.to} ${amount}`
+              return (
+                <li key={`${settlement.from}-${settlement.to}-${index}`} className="settlement-item">
+                  <span className="settlement-sentence" aria-label={ariaLabel}>
+                    <span className="settlement-name">{settlement.from}</span>
+                    <span className="settlement-arrow" aria-hidden="true">
+                      →
+                    </span>
+                    <span className="settlement-amount">{amount}</span>
+                    <span className="settlement-arrow" aria-hidden="true">
+                      →
+                    </span>
+                    <span className="settlement-name">{settlement.to}</span>
+                  </span>
+                </li>
+              )
+            })}
+          </ul>
+        )}
+      </section>
+
       <section aria-labelledby="balances-heading">
         <div className="panel-heading">
           <h3 id="balances-heading">Balances</h3>
@@ -58,7 +93,7 @@ export function Summary({ eventName, totals, balances, settlements, onBack, curr
           </div>
           {balances.map((row) => (
             <div key={row.id} className="balance-table__row">
-              <span className={row.balance >= 0 ? 'positive' : 'negative'}>{row.name}</span>
+              <span className="balance-table__name">{row.name}</span>
               <span>{formatter.format(row.paid)}</span>
               <span>{formatter.format(row.owes)}</span>
               <span className={row.balance >= 0 ? 'positive' : 'negative'}>
@@ -68,32 +103,6 @@ export function Summary({ eventName, totals, balances, settlements, onBack, curr
             </div>
           ))}
         </div>
-      </section>
-
-      <section aria-labelledby="settlements-heading">
-        <div className="panel-heading">
-          <h3 id="settlements-heading">Settlements</h3>
-        </div>
-
-        {settlements.length === 0 ? (
-          <div className="empty-state">
-            <strong>Everyone is square</strong>
-            No transfers needed—balances are already even.
-          </div>
-        ) : (
-          <ul className="settlement-list">
-            {settlements.map((settlement, index) => (
-              <li key={`${settlement.from}-${settlement.to}-${index}`} className="settlement-item">
-                <span className="settlement-sentence">
-                  <span className="settlement-name">{settlement.from}</span>
-                  <span className="settlement-verb">pays</span>
-                  <span className="settlement-name">{settlement.to}</span>
-                  <span className="settlement-amount">{formatter.format(Math.abs(settlement.amount))}</span>
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
       </section>
     </section>
   )

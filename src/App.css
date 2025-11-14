@@ -99,6 +99,7 @@
   background: rgba(248, 250, 252, 0.7);
   color: #1e293b;
   font-weight: 500;
+  font-size: 0.95rem;
   cursor: pointer;
 }
 
@@ -526,6 +527,11 @@
   display: grid;
   gap: 1rem;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: end;
+}
+
+.expense-form__row .expense-form__field {
+  min-width: 0;
 }
 
 .expense-form__field {
@@ -553,6 +559,14 @@
   color: #0f172a;
   background: rgba(255, 255, 255, 0.95);
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.expense-form input[type='date'],
+.expense-form select,
+.modal__form input[type='date'],
+.modal__form select {
+  font-family: inherit;
+  color: #0f172a;
 }
 
 .expense-form input:focus,
@@ -852,6 +866,11 @@
   color: #1e293b;
 }
 
+.balance-table__name {
+  color: #0f172a;
+  font-weight: 600;
+}
+
 .balance-table__row .positive {
   color: #0f766e;
 }
@@ -877,13 +896,14 @@
 }
 
 .settlement-sentence {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
-  align-items: baseline;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.35rem 0.75rem;
+  align-items: center;
   font-size: 0.95rem;
   font-weight: 500;
   color: #1f2937;
+  text-align: left;
 }
 
 .settlement-name {
@@ -891,16 +911,20 @@
   font-weight: 700;
 }
 
-.settlement-verb {
+.settlement-arrow {
+  font-size: 1rem;
+  font-weight: 600;
   color: #1f2937;
-  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .settlement-amount {
-  margin-left: auto;
   font-weight: 700;
   letter-spacing: 0.01em;
   color: #1d4ed8;
+  justify-self: center;
 }
 .icon-button {
   width: 32px;
@@ -1062,11 +1086,16 @@
   }
 
   .settlement-sentence {
-    gap: 0.35rem;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 0.3rem 0.5rem;
+  }
+
+  .settlement-arrow {
+    font-size: 0.95rem;
   }
 
   .settlement-amount {
-    margin-left: 0;
+    justify-self: center;
   }
 
   .expense-card__title-row {
