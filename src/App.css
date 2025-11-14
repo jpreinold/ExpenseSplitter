@@ -913,6 +913,10 @@
   border: 1px solid rgba(37, 99, 235, 0.18);
   background: rgba(37, 99, 235, 0.08);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
 }
 
 .settlement-item--clickable {
@@ -944,18 +948,24 @@
 
 .settlement-sentence {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: 100px 1fr auto 1fr 100px;
   gap: 0.35rem 0.75rem;
   align-items: center;
   font-size: 0.95rem;
   font-weight: 500;
   color: #1f2937;
   text-align: left;
+  flex: 1;
+  min-width: 0;
 }
 
 .settlement-name {
   color: #1d4ed8;
   font-weight: 700;
+}
+
+.settlement-item--complete .settlement-name {
+  color: #15803d;
 }
 
 .settlement-arrow {
@@ -972,6 +982,28 @@
   letter-spacing: 0.01em;
   color: #1d4ed8;
   justify-self: center;
+}
+
+.settlement-item--complete .settlement-amount {
+  color: #15803d;
+}
+
+.settlement-checkmark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #15803d;
+  font-size: 1.5rem;
+  font-weight: 700;
+  line-height: 1;
+  flex-shrink: 0;
+  width: 1.5rem;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.settlement-checkmark--visible {
+  opacity: 1;
 }
 .icon-button {
   width: 32px;

@@ -96,6 +96,9 @@ export function Summary({ eventName, totals, balances, settlements, onBack, curr
                     </span>
                     <span className="settlement-name">{settlement.to}</span>
                   </span>
+                  <span className={`settlement-checkmark ${isComplete ? 'settlement-checkmark--visible' : ''}`} aria-label={isComplete ? 'Settlement completed' : undefined}>
+                    ✓
+                  </span>
                 </li>
               )
             })}
