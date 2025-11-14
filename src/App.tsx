@@ -6,6 +6,8 @@ import { EventList } from './components/EventList'
 import { ExpenseEditor } from './components/ExpenseEditor'
 import { Summary } from './components/Summary'
 import { SettlementDetailModal } from './components/SettlementDetailModal'
+import { ParticipantEditModal } from './components/ParticipantEditModal'
+import { EventNameEditModal } from './components/EventNameEditModal'
 import { useLocalStore } from './state/useLocalStore'
 import type { EventDraft, ExpenseDraft } from './state/useLocalStore'
 import { calculateEventBalances, describeSplit, suggestSettlements } from './utils/calculations'
@@ -22,6 +24,8 @@ function App() {
   const [view, setView] = useState<ViewMode>('events')
   const [isCreateEventModalOpen, setIsCreateEventModalOpen] = useState(false)
   const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null)
+  const [editingParticipantId, setEditingParticipantId] = useState<string | null>(null)
+  const [isEditingEventName, setIsEditingEventName] = useState(false)
   const [openSettlement, setOpenSettlement] = useState<{ fromId: string; toId: string } | null>(null)
   const [confirmState, setConfirmState] = useState<(ConfirmationOptions & { resolve: (value: boolean) => void }) | null>(
     null,
@@ -207,6 +211,34 @@ function App() {
   const handleRemoveParticipantFromEvent = (participantId: string) => {
     if (!selectedEvent) return
     actions.removeParticipant(selectedEvent.id, participantId)
+  }
+
+  const handleEditParticipant = (participantId: string) => {
+    setEditingParticipantId(participantId)
+  }
+
+  const handleCloseParticipantEditModal = () => {
+    setEditingParticipantId(null)
+  }
+
+  const handleSaveParticipantName = (name: string) => {
+    if (!selectedEvent || !editingParticipantId) return
+    actions.upsertParticipant(selectedEvent.id, { id: editingParticipantId, name })
+    setEditingParticipantId(null)
+  }
+
+  const handleEditEventName = () => {
+    setIsEditingEventName(true)
+  }
+
+  const handleCloseEventNameEditModal = () => {
+    setIsEditingEventName(false)
+  }
+
+  const handleSaveEventName = (name: string) => {
+    if (!selectedEvent) return
+    actions.updateEventMeta(selectedEvent.id, { name })
+    setIsEditingEventName(false)
   }
 
   const handleRemoveExpense = (expenseId: string) => {
@@ -399,6 +431,8 @@ function App() {
             onShowSummary={() => setView('summary')}
             onAddParticipant={handleAddParticipantToEvent}
             onRemoveParticipant={handleRemoveParticipantFromEvent}
+            onEditParticipant={handleEditParticipant}
+            onEditEventName={handleEditEventName}
             onRemoveExpense={handleRemoveExpense}
             onEditExpense={handleEditExpense}
             onDeleteEvent={() => handleDeleteEvent(selectedEvent.id)}
@@ -467,6 +501,24 @@ function App() {
           tracking={openSettlementData.tracking}
           onAddPayment={handleAddSettlementPayment}
           onRemovePayment={handleRemoveSettlementPayment}
+        />
+      )}
+
+      {editingParticipantId && selectedEvent && (
+        <ParticipantEditModal
+          isOpen={Boolean(editingParticipantId)}
+          onClose={handleCloseParticipantEditModal}
+          onSave={handleSaveParticipantName}
+          currentName={eventParticipants.find((p) => p.id === editingParticipantId)?.name ?? ''}
+        />
+      )}
+
+      {isEditingEventName && selectedEvent && (
+        <EventNameEditModal
+          isOpen={isEditingEventName}
+          onClose={handleCloseEventNameEditModal}
+          onSave={handleSaveEventName}
+          currentName={selectedEvent.name}
         />
       )}
     </div>

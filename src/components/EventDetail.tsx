@@ -34,6 +34,8 @@ type EventDetailProps = {
   onShowSummary: () => void
   onAddParticipant: (name: string) => void
   onRemoveParticipant: (participantId: string) => void
+  onEditParticipant: (participantId: string) => void
+  onEditEventName: () => void
   onRemoveExpense: (expenseId: string) => void
   onEditExpense: (expenseId: string) => void
   onDeleteEvent: () => void | Promise<void>
@@ -53,6 +55,8 @@ export function EventDetail({
   onShowSummary,
   onAddParticipant,
   onRemoveParticipant,
+  onEditParticipant,
+  onEditEventName,
   onRemoveExpense,
   onEditExpense,
   onDeleteEvent,
@@ -98,7 +102,46 @@ export function EventDetail({
         </button>
         <div className="section-heading section-heading--event">
           <div className="section-heading__row">
-            <h2 className="section-title">{name}</h2>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1 }}>
+              <h2 className="section-title">{name}</h2>
+              <button
+                type="button"
+                className="edit-name-button"
+                aria-label="Edit event name"
+                onClick={onEditEventName}
+              >
+                <svg
+                  aria-hidden="true"
+                  width="14"
+                  height="14"
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M11.5 1.5L14.5 4.5L5.5 13.5L2.5 10.5L11.5 1.5Z"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                  <path
+                    d="M9.5 3.5L12.5 6.5"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                  <path
+                    d="M2.5 10.5L1.5 14.5L5.5 13.5"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </button>
+            </div>
             <button
               type="button"
               className="icon-button icon-button--danger"
@@ -114,7 +157,7 @@ export function EventDetail({
             {dateRange && <span>{dateRange}</span>}
             {location && <span>{location}</span>}
             <span>{participants.length} participants</span>
-            <span>{expenses.length} expenses</span>
+            <span>{expenses.length} {expenses.length === 1 ? 'expense' : 'expenses'}</span>
             <span>{totalFormatted}</span>
           </div>
         </div>
@@ -159,13 +202,21 @@ export function EventDetail({
         ) : (
           <ul className="participant-pill-list">
             {participants.map((participant) => (
-              <li key={participant.id} className="participant-pill">
+              <li
+                key={participant.id}
+                className="participant-pill"
+                onClick={() => {
+                  onEditParticipant(participant.id)
+                }}
+                style={{ cursor: 'pointer' }}
+              >
                 <span>{participant.name}</span>
                 <button
                   aria-label={`Remove ${participant.name}`}
                   type="button"
                   className="icon-button icon-button--danger"
-                  onClick={() => {
+                  onClick={(event) => {
+                    event.stopPropagation()
                     void handleRemoveParticipant(participant.id, participant.name)
                   }}
                 >
@@ -243,22 +294,11 @@ export function EventDetail({
                       <div className="expense-meta__line">
                         Paid by {expense.paidBy.map((payer) => payer.replace(/\s*\(.*?\)\s*$/, '')).join(', ')}
                       </div>
-                      <div className="expense-meta__line">
-                        {(() => {
-                          const totalPaid = expense.paidBy.reduce((sum, payer) => {
-                            const match = payer.match(/\(([^)]+)\)/)
-                            if (match) {
-                              const amountStr = match[1].replace(/[^\d.-]/g, '')
-                              return sum + parseFloat(amountStr || '0')
-                            }
-                            return sum
-                          }, 0)
-                          return new Intl.NumberFormat(undefined, {
-                            style: 'currency',
-                            currency,
-                          }).format(totalPaid)
-                        })()}
-                      </div>
+                      {expense.date && (
+                        <div className="expense-meta__line">
+                          {expense.date}
+                        </div>
+                      )}
                     </div>
                   </div>
                   <div className="expense-amount">

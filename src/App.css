@@ -184,8 +184,8 @@
   display: flex;
   flex-wrap: wrap;
   gap: 0.75rem;
-  color: #475569;
-  font-size: 0.85rem;
+  color: #64748b;
+  font-size: 0.95rem;
 }
 
 .view-section {
@@ -1048,6 +1048,38 @@
 
 .icon-button--primary:hover {
   box-shadow: 0 10px 20px rgba(37, 99, 235, 0.25);
+}
+
+.edit-name-button {
+  width: auto;
+  height: auto;
+  border: none;
+  background: none;
+  padding: 0.25rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #2563eb;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  line-height: 1;
+}
+
+.edit-name-button:hover {
+  opacity: 0.8;
+  transform: translateY(-1px);
+}
+
+.edit-name-button:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.3);
+  border-radius: 4px;
+}
+
+.edit-name-button svg {
+  display: block;
+  width: 14px;
+  height: 14px;
 }
 
 .modal-overlay {
