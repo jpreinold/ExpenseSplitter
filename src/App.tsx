@@ -27,11 +27,19 @@ function App() {
   )
 
   useEffect(() => {
+    const html = document.documentElement
     const body = document.body
-    if (!body) return
+    if (!html || !body) return
+    
+    // Ensure pull-to-refresh works on iOS
+    html.style.setProperty('overscroll-behavior-y', 'auto')
+    html.style.setProperty('-webkit-overflow-scrolling', 'touch')
     body.style.setProperty('overscroll-behavior-y', 'auto')
     body.style.setProperty('-webkit-overflow-scrolling', 'touch')
+    
     return () => {
+      html.style.removeProperty('overscroll-behavior-y')
+      html.style.removeProperty('-webkit-overflow-scrolling')
       body.style.removeProperty('overscroll-behavior-y')
       body.style.removeProperty('-webkit-overflow-scrolling')
     }

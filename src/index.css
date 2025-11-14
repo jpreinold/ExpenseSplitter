@@ -19,6 +19,11 @@ a {
   text-decoration: none;
 }
 
+html {
+  overscroll-behavior-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
 body {
   margin: 0;
   min-width: 320px;
@@ -26,6 +31,7 @@ body {
   background: linear-gradient(180deg, #eff6ff 0%, #f8fafc 100%);
   overscroll-behavior-y: auto;
   -webkit-overflow-scrolling: touch;
+  position: relative;
 }
 
 #root {

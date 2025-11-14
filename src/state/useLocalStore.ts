@@ -7,7 +7,6 @@ import type {
   Participant,
   ParticipantId,
   PayerAllocation,
-  SettlementPayment,
   SettlementTracking,
   SplitInstruction,
   SplitState,
