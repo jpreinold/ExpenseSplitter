@@ -15,6 +15,7 @@ type ExpensePreview = {
   paidBy: string[]
   splitSummary: string
   date?: string
+  notes?: string
 }
 
 type EventDetailProps = {
@@ -58,6 +59,7 @@ export function EventDetail({
   requestConfirmation,
 }: EventDetailProps) {
   const [participantName, setParticipantName] = useState('')
+  const [openNoteId, setOpenNoteId] = useState<string | null>(null)
   const totalFormatted = useMemo(
     () =>
       new Intl.NumberFormat(undefined, {
@@ -155,9 +157,9 @@ export function EventDetail({
             Add the crew so you can split expenses properly.
           </div>
         ) : (
-          <ul>
+          <ul className="participant-pill-list">
             {participants.map((participant) => (
-              <li key={participant.id}>
+              <li key={participant.id} className="participant-pill">
                 <span>{participant.name}</span>
                 <button
                   aria-label={`Remove ${participant.name}`}
@@ -204,20 +206,46 @@ export function EventDetail({
                   className="expense-card expense-card--interactive"
                   role="button"
                   tabIndex={0}
-                  onClick={() => onEditExpense(expense.id)}
+                  onClick={() => {
+                    setOpenNoteId(null)
+                    onEditExpense(expense.id)
+                  }}
                   onKeyDown={(event) => {
                     if (event.key === 'Enter' || event.key === ' ') {
                       event.preventDefault()
+                      setOpenNoteId(null)
                       onEditExpense(expense.id)
                     }
                   }}
                 >
-                  <div>
-                    <p className="expense-title">{expense.description}</p>
+                  <div className="expense-card__main">
+                    <div className="expense-card__title-row">
+                      <p className="expense-title">{expense.description}</p>
+                      {expense.notes ? (
+                        <button
+                          type="button"
+                          className="icon-button icon-button--info expense-note-button"
+                          aria-label={`Show notes for ${expense.description}`}
+                          aria-expanded={openNoteId === expense.id}
+                          aria-controls={`expense-note-${expense.id}`}
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            setOpenNoteId((current) => (current === expense.id ? null : expense.id))
+                          }}
+                        >
+                          i
+                        </button>
+                      ) : null}
+                    </div>
                     <p className="expense-meta">
                       Paid by {expense.paidBy.join(', ')}
                       {expense.date ? ` • ${expense.date}` : ''}
                     </p>
+                    {expense.notes && openNoteId === expense.id ? (
+                      <div className="expense-note-popover" id={`expense-note-${expense.id}`} role="status">
+                        {expense.notes}
+                      </div>
+                    ) : null}
                   </div>
                   <div className="expense-amount">
                     <span>{expense.formattedAmount}</span>
@@ -237,6 +265,7 @@ export function EventDetail({
                         tone: 'danger',
                       })
                       if (!confirmed) return
+                      setOpenNoteId(null)
                       onRemoveExpense(expense.id)
                     }}
                   >

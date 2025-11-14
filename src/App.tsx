@@ -98,6 +98,7 @@ function App() {
       amount: expense.amount,
       formattedAmount: formatter ? formatter.format(expense.amount) : expense.amount.toFixed(2),
       date: expense.createdAt ? new Date(expense.createdAt).toLocaleDateString() : undefined,
+      notes: expense.notes,
       paidBy: expense.paidBy.map((allocation) => {
         const participant = participantMap.get(allocation.participantId)
         const name = participant?.name ?? 'Unknown'

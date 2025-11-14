@@ -310,8 +310,8 @@ export function ExpenseEditor({ participants, currency, onCancel, onSave, initia
       </header>
 
       <form id="expense-form" className="expense-form" onSubmit={handleSubmit}>
-        <label>
-          <span>Description</span>
+        <label className="expense-form__field">
+          <span>Expense name</span>
           <input
             type="text"
             value={description}
@@ -321,26 +321,28 @@ export function ExpenseEditor({ participants, currency, onCancel, onSave, initia
           />
         </label>
 
-        <label>
-          <span>Amount</span>
-          <input
-            type="number"
-            min="0"
-            step="0.01"
-            inputMode="decimal"
-            value={amount}
-            placeholder="0.00"
-            onChange={(event) => setAmount(event.target.value)}
-            required
-          />
-        </label>
+        <div className="expense-form__row">
+          <label className="expense-form__field">
+            <span>Amount</span>
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              inputMode="decimal"
+              value={amount}
+              placeholder="0.00"
+              onChange={(event) => setAmount(event.target.value)}
+              required
+            />
+          </label>
 
-        <label>
-          <span>Date (optional)</span>
-          <input type="date" value={date} onChange={(event) => setDate(event.target.value)} />
-        </label>
+          <label className="expense-form__field">
+            <span>Date (optional)</span>
+            <input type="date" value={date} onChange={(event) => setDate(event.target.value)} />
+          </label>
+        </div>
 
-        <label>
+        <label className="expense-form__field">
           <span>Who paid?</span>
           <select value={paidBy} onChange={(event) => setPaidBy(event.target.value)} required>
             <option value="" disabled>
@@ -450,7 +452,7 @@ export function ExpenseEditor({ participants, currency, onCancel, onSave, initia
           </div>
         )}
 
-        <label>
+        <label className="expense-form__field">
           <span>Notes (optional)</span>
           <textarea
             rows={3}

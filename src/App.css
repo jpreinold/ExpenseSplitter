@@ -299,28 +299,28 @@
   color: #0f172a;
 }
 
-.participants-panel ul {
+.participant-pill-list {
   list-style: none;
   margin: 0;
   padding: 0;
-  display: grid;
+  display: flex;
+  flex-wrap: wrap;
   gap: 0.6rem;
 }
 
-.participants-panel li {
-  padding: 0.7rem 0.85rem 0.7rem 1rem;
-  border-radius: 14px;
-  background: rgba(37, 99, 235, 0.06);
+.participant-pill {
+  padding: 0.65rem 0.8rem 0.65rem 0.9rem;
+  border-radius: 999px;
+  background: rgba(37, 99, 235, 0.08);
   color: #1e3a8a;
   font-weight: 600;
-  display: flex;
-  justify-content: space-between;
+  display: inline-flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.6rem;
+  max-width: 100%;
 }
 
-.participants-panel li span {
-  flex: 1;
+.participant-pill span {
   font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -352,6 +352,25 @@
   cursor: pointer;
   transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
   padding-right: 3.5rem;
+}
+
+.expense-card__main {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.expense-card__title-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.expense-note-button {
+  flex-shrink: 0;
 }
 
 .expense-card--interactive:hover {
@@ -403,9 +422,57 @@
   font-weight: 500;
 }
 
+.icon-button--info {
+  background: rgba(37, 99, 235, 0.18);
+  color: #1d4ed8;
+  font-size: 0.95rem;
+}
+
+.icon-button--info:hover {
+  background: rgba(37, 99, 235, 0.28);
+  color: #1e3a8a;
+}
+
+.expense-note-popover {
+  position: relative;
+  margin-top: 0.5rem;
+  padding: 0.7rem 0.85rem;
+  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.92);
+  color: #f8fafc;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  max-width: clamp(220px, 45vw, 320px);
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.25);
+  word-break: break-word;
+}
+
+.expense-note-popover::before {
+  content: '';
+  position: absolute;
+  top: -6px;
+  left: 18px;
+  width: 12px;
+  height: 12px;
+  background: inherit;
+  transform: rotate(45deg);
+  border-radius: 2px;
+}
+
 .expense-form {
   display: grid;
   gap: 1rem;
+}
+
+.expense-form__row {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.expense-form__field {
+  display: grid;
+  gap: 0.5rem;
 }
 
 .expense-form label,
@@ -424,6 +491,8 @@
   border-radius: 10px;
   border: 1px solid rgba(148, 163, 184, 0.4);
   font-size: 1rem;
+  font-family: inherit;
+  color: #0f172a;
   background: rgba(255, 255, 255, 0.95);
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
@@ -896,6 +965,10 @@
 }
 
 @media (max-width: 640px) {
+  .expense-form__row {
+    grid-template-columns: 1fr;
+  }
+
   .app-shell {
     padding: 1rem 0.75rem 2.5rem;
   }
