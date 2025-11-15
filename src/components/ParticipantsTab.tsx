@@ -19,6 +19,22 @@ type ParticipantsTabProps = {
   onUpdateGroup: (groupId: string, updates: { name: string; participantIds: ParticipantId[] }) => void
 }
 
+type EventSelectionSet = {
+  id: string
+  name: string
+  participantIds: ParticipantId[]
+  participantNames: string[]
+  event: Event
+}
+
+type ParticipantsFilterResult = {
+  participants: Participant[]
+  groups: ParticipantGroup[]
+  events: EventSelectionSet[]
+  descriptor: string | null
+  mode: 'group' | 'participant' | 'event' | null
+}
+
 export function ParticipantsTab({
   events,
   groups,
@@ -38,9 +54,10 @@ export function ParticipantsTab({
   const [showAddToEventModal, setShowAddToEventModal] = useState(false)
   const [showCreateGroupModal, setShowCreateGroupModal] = useState(false)
   const [pendingGroupName, setPendingGroupName] = useState('')
-  const [newParticipantName, setNewParticipantName] = useState('')
+  const [participantQuery, setParticipantQuery] = useState('')
   const [targetEventId, setTargetEventId] = useState<string>('')
   const [editingGroupId, setEditingGroupId] = useState<string | null>(null)
+  const [selectedEventId, setSelectedEventId] = useState<string | null>(null)
 
   const uniqueParticipants = useMemo(() => {
     const eventParticipants = getAllParticipants(events)
@@ -55,12 +72,16 @@ export function ParticipantsTab({
     return Array.from(participantMap.values())
   }, [events, unassignedParticipants])
 
-  const handleSubmitParticipant = (event: React.FormEvent) => {
-    event.preventDefault()
-    const trimmed = newParticipantName.trim()
+  const createParticipantFromQuery = () => {
+    const trimmed = participantQuery.trim()
     if (!trimmed) return
     onCreateParticipant(trimmed)
-    setNewParticipantName('')
+    setParticipantQuery('')
+  }
+
+  const handleSubmitParticipant = (event: React.FormEvent) => {
+    event.preventDefault()
+    createParticipantFromQuery()
   }
 
   const participantMap = useMemo(() => {
@@ -71,6 +92,120 @@ export function ParticipantsTab({
   }, [allParticipants, unassignedParticipants])
 
   const participantOptions = useMemo(() => Array.from(participantMap.values()), [participantMap])
+
+  const eventSelectionSets = useMemo<EventSelectionSet[]>(() => {
+    return events.map((event) => ({
+      id: event.id,
+      name: event.name,
+      participantIds: event.participants.map((participant) => participant.id),
+      participantNames: event.participants.map((participant) => participant.name),
+      event,
+    }))
+  }, [events])
+
+  const normalizedFilter = participantQuery.trim().toLowerCase()
+
+  const filterResults = useMemo<ParticipantsFilterResult>(() => {
+    if (!normalizedFilter) {
+      return {
+        participants: uniqueParticipants,
+        groups,
+        events: eventSelectionSets,
+        descriptor: null,
+        mode: null,
+      }
+    }
+
+    const groupMatches = groups.filter((group) =>
+      group.name.toLowerCase().includes(normalizedFilter),
+    )
+
+    if (groupMatches.length > 0) {
+      const participantIdsFromGroups = new Set(
+        groupMatches.flatMap((group) => group.participantIds),
+      )
+      return {
+        participants: uniqueParticipants.filter((participant) =>
+          participantIdsFromGroups.has(participant.id),
+        ),
+        groups: groupMatches,
+        events: eventSelectionSets.filter((eventSet) =>
+          eventSet.participantIds.some((id) => participantIdsFromGroups.has(id)),
+        ),
+        descriptor:
+          groupMatches.length === 1
+            ? `group “${groupMatches[0].name}”`
+            : `${groupMatches.length} groups`,
+        mode: 'group',
+      }
+    }
+
+    const participantMatches = uniqueParticipants.filter((participant) =>
+      participant.name.toLowerCase().includes(normalizedFilter),
+    )
+
+    if (participantMatches.length > 0) {
+      const participantIds = new Set(participantMatches.map((participant) => participant.id))
+      return {
+        participants: participantMatches,
+        groups: groups.filter((group) =>
+          group.participantIds.some((id) => participantIds.has(id)),
+        ),
+        events: eventSelectionSets.filter((eventSet) =>
+          eventSet.participantIds.some((id) => participantIds.has(id)),
+        ),
+        descriptor:
+          participantMatches.length === 1
+            ? `participant “${participantMatches[0].name}”`
+            : `${participantMatches.length} participants`,
+        mode: 'participant',
+      }
+    }
+
+    const eventMatches = eventSelectionSets.filter((eventSet) =>
+      eventSet.name.toLowerCase().includes(normalizedFilter),
+    )
+
+    if (eventMatches.length > 0) {
+      const participantIdsFromEvents = new Set(
+        eventMatches.flatMap((eventSet) => eventSet.participantIds),
+      )
+      return {
+        participants: uniqueParticipants.filter((participant) =>
+          participantIdsFromEvents.has(participant.id),
+        ),
+        groups: groups.filter((group) =>
+          group.participantIds.some((id) => participantIdsFromEvents.has(id)),
+        ),
+        events: eventMatches,
+        descriptor:
+          eventMatches.length === 1
+            ? `event “${eventMatches[0].name}”`
+            : `${eventMatches.length} events`,
+        mode: 'event',
+      }
+    }
+
+    return {
+      participants: [],
+      groups: [],
+      events: [],
+      descriptor: null,
+      mode: null,
+    }
+  }, [normalizedFilter, eventSelectionSets, groups, uniqueParticipants])
+
+  const participantsToRender = filterResults.participants
+  const groupsToRender = filterResults.groups
+  const eventsToRender = filterResults.events
+  const filterDescriptor = filterResults.descriptor
+  const isFiltering = normalizedFilter.length > 0
+  const selectedGroupName = selectedGroupId
+    ? groups.find((group) => group.id === selectedGroupId)?.name ?? null
+    : null
+  const selectedEventName = selectedEventId
+    ? events.find((event) => event.id === selectedEventId)?.name ?? null
+    : null
 
   const checkIfSelectionMatchesGroup = (selectedIds: Set<ParticipantId>): string | null => {
     const selectedArray = Array.from(selectedIds).sort()
@@ -90,13 +225,10 @@ export function ParticipantsTab({
         next.add(participantId)
       }
 
-      // Check if selection matches an existing group
       const matchingGroupId = checkIfSelectionMatchesGroup(next)
-      // If selection no longer matches the selected group, deselect it
-      if (selectedGroupId && matchingGroupId !== selectedGroupId) {
-        setSelectedGroupId(null)
-      } else {
-        setSelectedGroupId(matchingGroupId)
+      setSelectedGroupId(matchingGroupId)
+      if (selectedEventId) {
+        setSelectedEventId(null)
       }
 
       return next
@@ -110,12 +242,30 @@ export function ParticipantsTab({
     if (selectedGroupId === groupId) {
       // Deselect group
       setSelectedGroupId(null)
+      setSelectedEventId(null)
       setSelectedParticipantIds(new Set())
     } else {
       // Select group
       setSelectedGroupId(groupId)
+      setSelectedEventId(null)
       setSelectedParticipantIds(new Set(group.participantIds))
     }
+  }
+
+  const handleEventToggle = (eventId: string) => {
+    const eventSet = eventSelectionSets.find((event) => event.id === eventId)
+    if (!eventSet) return
+
+    if (selectedEventId === eventId) {
+      setSelectedEventId(null)
+      setSelectedParticipantIds(new Set())
+      setSelectedGroupId(null)
+      return
+    }
+
+    setSelectedEventId(eventId)
+    setSelectedGroupId(null)
+    setSelectedParticipantIds(new Set(eventSet.participantIds))
   }
 
   const matchingSelectedGroupId = checkIfSelectionMatchesGroup(selectedParticipantIds)
@@ -150,6 +300,7 @@ export function ParticipantsTab({
     setShowAddToEventModal(false)
     setSelectedParticipantIds(new Set())
     setSelectedGroupId(null)
+    setSelectedEventId(null)
     setPendingGroupName('')
     
     // Navigate to the event
@@ -196,6 +347,13 @@ export function ParticipantsTab({
     setPendingGroupName('')
     setSelectedParticipantIds(new Set())
     setSelectedGroupId(null)
+    setSelectedEventId(null)
+  }
+
+  const clearSelection = () => {
+    setSelectedParticipantIds(new Set())
+    setSelectedGroupId(null)
+    setSelectedEventId(null)
   }
 
   const handleCreateGroupModalClose = () => {
@@ -222,354 +380,394 @@ export function ParticipantsTab({
 
   return (
     <>
-      <section className="surface view-section">
+      <section className="surface view-section participants-board">
         <header className="section-header">
           <div className="section-heading">
             <h2 className="section-title">Participants</h2>
-            <p className="section-subtitle">Manage all participants across all events</p>
+            <p className="section-subtitle">Manage people, groups, and reusable sets</p>
           </div>
-          {selectedParticipantIds.size > 0 && (
-            <div className="header-actions" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-              <button className="primary-button" onClick={handleAddToEvent} type="button">
-                Add participants to an event ({selectedParticipantIds.size})
-              </button>
-              {selectedParticipantIds.size > 1 && !matchingSelectedGroupId && (
-                <button className="ghost-button" onClick={() => setShowCreateGroupModal(true)} type="button">
-                  Create group ({selectedParticipantIds.size})
-                </button>
-              )}
-            </div>
-          )}
         </header>
 
-        <section aria-labelledby="participants-heading">
-          <div className="panel-heading">
-            <h3 id="participants-heading">All Participants</h3>
-            <span className="badge">{uniqueParticipants.length}</span>
-          </div>
-          <form className="inline-form participant-form" onSubmit={handleSubmitParticipant}>
-            <label className="sr-only" htmlFor="new-participant">
-              New participant name
+        <div className="participant-toolbar">
+          <form className="participant-search" onSubmit={handleSubmitParticipant}>
+            <label className="sr-only" htmlFor="participant-query-input">
+              Search or add participants
             </label>
-            <div className="input-group" style={{ flex: '1' }}>
+            <div className="input-group participant-search__group">
               <input
-                id="new-participant"
+                id="participant-query-input"
                 type="text"
-                value={newParticipantName}
-                onChange={(event) => setNewParticipantName(event.target.value)}
-                placeholder="Add someone new"
+                value={participantQuery}
+                onChange={(event) => setParticipantQuery(event.target.value)}
+                placeholder="Search names, groups, or events — or add someone new"
                 className="input-group__control"
+                autoComplete="off"
               />
-              <button type="submit" className="input-group__button" aria-label="Add participant" disabled={!newParticipantName.trim()}>
-                Add
+              <button
+                type="submit"
+                className="input-group__button"
+                aria-label="Add participant"
+                disabled={!participantQuery.trim()}
+              >
+                Add new
               </button>
             </div>
           </form>
-          {uniqueParticipants.length === 0 ? (
-            <div className="empty-state">
-              <strong>No participants</strong>
-              <p>Participants will appear here once added to events.</p>
-            </div>
-          ) : (
-            <ul className="participant-pill-list" style={{ marginTop: '1rem' }}>
-              {uniqueParticipants.map((participant) => {
-                const isSelected = selectedParticipantIds.has(participant.id)
-                return (
-                  <li
-                    key={participant.id}
-                    className="participant-pill"
-                    style={{
-                      position: 'relative',
-                      flexDirection: 'column',
-                      alignItems: 'flex-start',
-                      padding: '0.75rem 2.5rem 0.75rem 2.5rem',
-                      cursor: 'pointer',
-                      width: 'auto',
-                      maxWidth: '100%',
-                    }}
-                    onClick={(e) => {
-                      e.preventDefault()
-                      handleParticipantToggle(participant.id)
-                    }}
-                  >
-                    <label
-                      style={{
-                        position: 'absolute',
-                        left: '0.5rem',
-                        top: '50%',
-                        transform: 'translateY(-50%)',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        width: '18px',
-                        height: '18px',
-                      }}
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={isSelected}
-                        onChange={() => handleParticipantToggle(participant.id)}
-                        onClick={(e) => e.stopPropagation()}
-                        style={{ position: 'absolute', opacity: 0, pointerEvents: 'none' }}
-                      />
-                      <span
-                        style={{
-                          width: '18px',
-                          height: '18px',
-                          borderRadius: '50%',
-                          border: isSelected ? '2px solid #2563eb' : '2px solid rgba(148, 163, 184, 0.6)',
-                          background: isSelected ? '#2563eb' : 'transparent',
-                          boxShadow: isSelected ? 'inset 0 0 0 3px #eef2ff' : 'none',
-                          transition: 'background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease',
-                        }}
-                      ></span>
-                    </label>
-                    <div style={{ 
-                      flex: 1,
-                      display: 'flex', 
-                      flexDirection: 'column', 
-                      gap: '0.25rem',
-                      minWidth: '6rem',
-                      paddingRight: '2.5rem',
-                    }}>
-                      <span style={{ fontWeight: '600', fontSize: '0.95rem' }}>{participant.name}</span>
-                      <span
-                        style={{
-                          fontSize: '0.75rem',
-                          color: 'var(--color-text-secondary)',
-                          fontWeight: '400',
-                        }}
-                      >
-                        {participant.id}
-                      </span>
-                    </div>
-                    <div
-                      style={{
-                        position: 'absolute',
-                        top: '0.5rem',
-                        right: '0.5rem',
-                        display: 'flex',
-                        gap: '0.25rem',
-                      }}
-                    >
-                      <button
-                        type="button"
-                        className="edit-name-button"
-                        onClick={(e) => handleEditParticipant(participant.id, e)}
-                        aria-label={`Edit ${participant.name}`}
-                        style={{
-                          padding: '0.25rem',
-                          background: 'transparent',
-                          border: 'none',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                        }}
-                      >
-                        <svg
-                          aria-hidden="true"
-                          width="14"
-                          height="14"
-                          viewBox="0 0 16 16"
-                          fill="none"
-                          xmlns="http://www.w3.org/2000/svg"
-                        >
-                          <path
-                            d="M11.5 1.5L14.5 4.5L5.5 13.5L2.5 10.5L11.5 1.5Z"
-                            stroke="currentColor"
-                            strokeWidth="1.5"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          />
-                          <path
-                            d="M9.5 3.5L12.5 6.5"
-                            stroke="currentColor"
-                            strokeWidth="1.5"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          />
-                          <path
-                            d="M2.5 10.5L1.5 14.5L5.5 13.5"
-                            stroke="currentColor"
-                            strokeWidth="1.5"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          />
-                        </svg>
-                      </button>
-                      <button
-                        type="button"
-                        className="icon-button icon-button--danger"
-                        onClick={(e) => handleDeleteParticipant(participant.id, e)}
-                        aria-label={`Delete ${participant.name}`}
-                        style={{
-                          padding: '0.25rem',
-                        }}
-                      >
-                        <span aria-hidden>×</span>
-                      </button>
-                    </div>
-                  </li>
-                )
-              })}
-            </ul>
+          {isFiltering && (
+            <button
+              type="button"
+              className="ghost-button ghost-button--small"
+              onClick={() => setParticipantQuery('')}
+            >
+              Clear filter
+            </button>
           )}
-        </section>
+        </div>
 
-        {groups.length > 0 && (
-          <section aria-labelledby="groups-heading" style={{ marginTop: '2rem' }}>
-            <div className="panel-heading">
-              <h3 id="groups-heading">Groups</h3>
-              <span className="badge">{groups.length}</span>
-            </div>
-            <ul className="participant-pill-list" style={{ marginTop: '1rem' }}>
-              {groups.map((group) => {
-                const isSelected = selectedGroupId === group.id
-                const groupParticipantNames = group.participantIds
-                  .map((id) => participantMap.get(id)?.name)
-                  .filter(Boolean)
-                  .join(', ')
-
-                return (
-                  <li
-                    key={group.id}
-                    className="participant-pill"
-                    style={{
-                      position: 'relative',
-                      flexDirection: 'column',
-                      alignItems: 'flex-start',
-                      padding: '0.75rem 2.5rem 0.75rem 2.5rem',
-                      cursor: 'pointer',
-                      width: 'auto',
-                      maxWidth: '100%',
-                    }}
-                    onClick={(e) => {
-                      e.preventDefault()
-                      handleGroupToggle(group.id)
-                    }}
-                  >
-                    <label
-                      style={{
-                        position: 'absolute',
-                        left: '0.5rem',
-                        top: '50%',
-                        transform: 'translateY(-50%)',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        width: '18px',
-                        height: '18px',
-                      }}
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={isSelected}
-                        onChange={() => handleGroupToggle(group.id)}
-                        onClick={(e) => e.stopPropagation()}
-                        style={{ position: 'absolute', opacity: 0, pointerEvents: 'none' }}
-                      />
-                      <span
-                        style={{
-                          width: '18px',
-                          height: '18px',
-                          borderRadius: '50%',
-                          border: isSelected ? '2px solid #2563eb' : '2px solid rgba(148, 163, 184, 0.6)',
-                          background: isSelected ? '#2563eb' : 'transparent',
-                          boxShadow: isSelected ? 'inset 0 0 0 3px #eef2ff' : 'none',
-                          transition: 'background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease',
-                        }}
-                      ></span>
-                    </label>
-                    <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '0.25rem', paddingRight: '1.25rem' }}>
-                      <span style={{ fontWeight: '600', fontSize: '0.95rem' }}>{group.name}</span>
-                      <span
-                        style={{
-                          fontSize: '0.75rem',
-                          color: 'var(--color-text-secondary)',
-                          fontWeight: '400',
-                        }}
-                      >
-                        {groupParticipantNames}
-                      </span>
-                    </div>
-                    <div
-                      style={{
-                        position: 'absolute',
-                        top: '0.5rem',
-                        right: '0.5rem',
-                        display: 'flex',
-                        gap: '0.25rem',
-                      }}
-                    >
-                      <button
-                        type="button"
-                        className="edit-name-button"
-                        aria-label={`Edit group ${group.name}`}
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          setEditingGroupId(group.id)
-                        }}
-                        style={{
-                          padding: '0.25rem',
-                        }}
-                      >
-                        <svg
-                          aria-hidden="true"
-                          width="14"
-                          height="14"
-                          viewBox="0 0 16 16"
-                          fill="none"
-                          xmlns="http://www.w3.org/2000/svg"
-                        >
-                          <path
-                            d="M11.5 1.5L14.5 4.5L5.5 13.5L2.5 10.5L11.5 1.5Z"
-                            stroke="currentColor"
-                            strokeWidth="1.5"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          />
-                          <path
-                            d="M9.5 3.5L12.5 6.5"
-                            stroke="currentColor"
-                            strokeWidth="1.5"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          />
-                          <path
-                            d="M2.5 10.5L1.5 14.5L5.5 13.5"
-                            stroke="currentColor"
-                            strokeWidth="1.5"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          />
-                        </svg>
-                      </button>
-                      <button
-                        type="button"
-                        className="icon-button icon-button--danger"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          onDeleteGroup(group.id)
-                        }}
-                        aria-label={`Delete group ${group.name}`}
-                        style={{
-                          padding: '0.25rem',
-                        }}
-                      >
-                        <span aria-hidden>×</span>
-                      </button>
-                    </div>
-                  </li>
-                )
-              })}
-            </ul>
-          </section>
+        {isFiltering && (
+          <div className="filter-hint">
+            Showing matches for “{participantQuery.trim()}”
+            {filterDescriptor ? <span> · Based on {filterDescriptor}</span> : null}
+          </div>
         )}
+
+        {selectedParticipantIds.size > 0 && (
+          <div className="selection-summary">
+            <div className="selection-summary__details">
+              <span className="selection-summary__count">{selectedParticipantIds.size}</span>
+              selected
+              {selectedGroupName && (
+                <span className="selection-summary__context"> · group {selectedGroupName}</span>
+              )}
+              {selectedEventName && (
+                <span className="selection-summary__context"> · event {selectedEventName}</span>
+              )}
+            </div>
+            <div className="selection-summary__actions">
+              <button className="primary-button" onClick={handleAddToEvent} type="button">
+                Add to event
+              </button>
+              {selectedParticipantIds.size > 1 && !matchingSelectedGroupId && (
+                <button className="ghost-button" onClick={() => setShowCreateGroupModal(true)} type="button">
+                  Save as group
+                </button>
+              )}
+              <button className="ghost-button ghost-button--muted" type="button" onClick={clearSelection}>
+                Clear selection
+              </button>
+            </div>
+          </div>
+        )}
+
+        <div className="participants-layout">
+          <div className="participants-column">
+            <div className="panel-heading panel-heading--subtle">
+              <h3 id="participants-heading">{isFiltering ? 'Matching people' : 'All participants'}</h3>
+              <span className="badge">{participantsToRender.length}</span>
+            </div>
+
+            {participantsToRender.length === 0 ? (
+              <div className="empty-state empty-state--narrow">
+                {isFiltering ? (
+                  <>
+                    <strong>No people match</strong>
+                    <p>Try another search, or add them as a brand-new participant.</p>
+                    {participantQuery.trim() && (
+                      <button type="button" className="primary-button" onClick={createParticipantFromQuery}>
+                        Add “{participantQuery.trim()}”
+                      </button>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <strong>No participants yet</strong>
+                    <p>Start by adding someone new to your workspace.</p>
+                  </>
+                )}
+              </div>
+            ) : (
+              <ul className="people-grid">
+                {participantsToRender.map((participant) => {
+                  const isSelected = selectedParticipantIds.has(participant.id)
+                  return (
+                    <li
+                      key={participant.id}
+                      className={`participant-card participant-card--compact${isSelected ? ' is-selected' : ''}`}
+                      onClick={() => handleParticipantToggle(participant.id)}
+                    >
+                      <div className="participant-card__top">
+                        <label className="checkbox-chip" onClick={(event) => event.stopPropagation()}>
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={(event) => {
+                              event.stopPropagation()
+                              handleParticipantToggle(participant.id)
+                            }}
+                          />
+                          <span aria-hidden />
+                        </label>
+                        <div className="participant-card__actions">
+                          <button
+                            type="button"
+                            className="edit-name-button"
+                            aria-label={`Edit ${participant.name}`}
+                            onClick={(event) => handleEditParticipant(participant.id, event)}
+                          >
+                            <svg
+                              aria-hidden="true"
+                              width="14"
+                              height="14"
+                              viewBox="0 0 16 16"
+                              fill="none"
+                              xmlns="http://www.w3.org/2000/svg"
+                            >
+                              <path
+                                d="M11.5 1.5L14.5 4.5L5.5 13.5L2.5 10.5L11.5 1.5Z"
+                                stroke="currentColor"
+                                strokeWidth="1.5"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              />
+                              <path
+                                d="M9.5 3.5L12.5 6.5"
+                                stroke="currentColor"
+                                strokeWidth="1.5"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              />
+                              <path
+                                d="M2.5 10.5L1.5 14.5L5.5 13.5"
+                                stroke="currentColor"
+                                strokeWidth="1.5"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              />
+                            </svg>
+                          </button>
+                          <button
+                            type="button"
+                            className="icon-button icon-button--danger"
+                            aria-label={`Delete ${participant.name}`}
+                            onClick={(event) => handleDeleteParticipant(participant.id, event)}
+                          >
+                            <span aria-hidden>×</span>
+                          </button>
+                        </div>
+                      </div>
+                      <div className="participant-card__info">
+                        <p className="participant-card__name">{participant.name}</p>
+                        <p className="participant-card__meta" title={participant.id}>
+                          {participant.id}
+                        </p>
+                      </div>
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
+          </div>
+
+          <aside className="collections-column">
+            <section className="collection-panel">
+              <div className="panel-heading panel-heading--subtle">
+                <h3 id="groups-heading">{isFiltering ? 'Matching groups' : 'Groups'}</h3>
+                <span className="badge">{groupsToRender.length}</span>
+              </div>
+              {groupsToRender.length === 0 ? (
+                <div className="empty-state empty-state--narrow">
+                  {isFiltering ? (
+                    <>
+                      <strong>No groups match</strong>
+                      <p>Keep typing or select multiple people to save a new group.</p>
+                    </>
+                  ) : (
+                    <>
+                      <strong>No groups yet</strong>
+                      <p>Group frequent travelers, teams, or families to reuse later.</p>
+                    </>
+                  )}
+                </div>
+              ) : (
+                <ul className="collection-grid collection-grid--compact">
+                  {groupsToRender.map((group) => {
+                    const isSelected = selectedGroupId === group.id
+                    const groupParticipantNames = group.participantIds
+                      .map((id) => participantMap.get(id)?.name)
+                      .filter(Boolean)
+                      .join(', ')
+                    return (
+                      <li
+                        key={group.id}
+                        className={`collection-card collection-card--compact${isSelected ? ' is-selected' : ''}`}
+                        onClick={() => handleGroupToggle(group.id)}
+                      >
+                        <div className="collection-card__top">
+                          <label className="checkbox-chip" onClick={(event) => event.stopPropagation()}>
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={(event) => {
+                                event.stopPropagation()
+                                handleGroupToggle(group.id)
+                              }}
+                            />
+                            <span aria-hidden />
+                          </label>
+                          <div className="collection-card__actions">
+                            <button
+                              type="button"
+                              className="edit-name-button"
+                              aria-label={`Edit group ${group.name}`}
+                              onClick={(event) => {
+                                event.stopPropagation()
+                                setEditingGroupId(group.id)
+                              }}
+                            >
+                              <svg
+                                aria-hidden="true"
+                                width="14"
+                                height="14"
+                                viewBox="0 0 16 16"
+                                fill="none"
+                                xmlns="http://www.w3.org/2000/svg"
+                              >
+                                <path
+                                  d="M11.5 1.5L14.5 4.5L5.5 13.5L2.5 10.5L11.5 1.5Z"
+                                  stroke="currentColor"
+                                  strokeWidth="1.5"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                />
+                                <path
+                                  d="M9.5 3.5L12.5 6.5"
+                                  stroke="currentColor"
+                                  strokeWidth="1.5"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                />
+                                <path
+                                  d="M2.5 10.5L1.5 14.5L5.5 13.5"
+                                  stroke="currentColor"
+                                  strokeWidth="1.5"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                />
+                              </svg>
+                            </button>
+                            <button
+                              type="button"
+                              className="icon-button icon-button--danger"
+                              aria-label={`Delete group ${group.name}`}
+                              onClick={(event) => {
+                                event.stopPropagation()
+                                onDeleteGroup(group.id)
+                              }}
+                            >
+                              <span aria-hidden>×</span>
+                            </button>
+                          </div>
+                        </div>
+                        <div className="collection-card__info">
+                          <p className="collection-card__title">{group.name}</p>
+                          <p className="collection-card__meta" title={groupParticipantNames || undefined}>
+                            {groupParticipantNames || 'No participants yet'}
+                          </p>
+                        </div>
+                        <span className="collection-card__count">{group.participantIds.length}</span>
+                      </li>
+                    )
+                  })}
+                </ul>
+              )}
+            </section>
+
+            <section className="collection-panel">
+              <div className="panel-heading panel-heading--subtle">
+                <h3>Event participant sets</h3>
+                <span className="badge">{eventsToRender.length}</span>
+              </div>
+              {eventsToRender.length === 0 ? (
+                <div className="empty-state empty-state--narrow">
+                  {isFiltering ? (
+                    <>
+                      <strong>No events match</strong>
+                      <p>The search doesn&apos;t match existing events.</p>
+                    </>
+                  ) : (
+                    <>
+                      <strong>No events available</strong>
+                      <p>Create an event to reuse its participant list here.</p>
+                    </>
+                  )}
+                </div>
+              ) : (
+                <ul className="collection-grid">
+                  {eventsToRender.map((eventSet) => {
+                    const isEventSelected = selectedEventId === eventSet.id
+                    const previewNames = eventSet.participantNames.slice(0, 4).join(', ')
+                    return (
+                      <li
+                        key={eventSet.id}
+                        className={`collection-card collection-card--event${isEventSelected ? ' is-selected' : ''}`}
+                        onClick={() => handleEventToggle(eventSet.id)}
+                      >
+                        <div className="collection-card__header">
+                          <label className="checkbox-chip" onClick={(event) => event.stopPropagation()}>
+                            <input
+                              type="checkbox"
+                              checked={isEventSelected}
+                              onChange={(event) => {
+                                event.stopPropagation()
+                                handleEventToggle(eventSet.id)
+                              }}
+                            />
+                            <span aria-hidden />
+                          </label>
+                          <div className="collection-card__titles">
+                            <p className="collection-card__title">{eventSet.name}</p>
+                            <p
+                              className="collection-card__meta"
+                              title={eventSet.participantNames.join(', ') || undefined}
+                            >
+                              {previewNames}
+                              {eventSet.participantNames.length > 4 ? '…' : ''}
+                            </p>
+                          </div>
+                          <span className="collection-card__count">{eventSet.participantIds.length}</span>
+                        </div>
+                        <div className="collection-card__actions">
+                          {onNavigateToEvent && (
+                            <button
+                              type="button"
+                              className="ghost-button ghost-button--small"
+                              onClick={(event) => {
+                                event.stopPropagation()
+                                onNavigateToEvent(eventSet.id)
+                              }}
+                            >
+                              View event
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            className="primary-button primary-button--compact"
+                            onClick={(event) => {
+                              event.stopPropagation()
+                              handleEventToggle(eventSet.id)
+                            }}
+                          >
+                            {isEventSelected ? 'Deselect' : 'Select all'}
+                          </button>
+                        </div>
+                      </li>
+                    )
+                  })}
+                </ul>
+              )}
+            </section>
+          </aside>
+        </div>
       </section>
 
       {showAddToEventModal && (() => {
