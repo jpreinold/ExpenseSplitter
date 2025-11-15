@@ -9,6 +9,7 @@ import { SettlementDetailModal } from './components/SettlementDetailModal'
 import { ParticipantEditModal } from './components/ParticipantEditModal'
 import { EventNameEditModal } from './components/EventNameEditModal'
 import { ParticipantsTab } from './components/ParticipantsTab'
+import { PrimaryNav } from './components/PrimaryNav'
 import { useLocalStore } from './state/useLocalStore'
 import type { EventDraft, ExpenseDraft, GroupDraft } from './state/useLocalStore'
 import { calculateEventBalances, describeSplit, suggestSettlements } from './utils/calculations'
@@ -18,7 +19,7 @@ import { ConfirmDialog } from './components/ConfirmDialog'
 import type { ConfirmationOptions } from './components/ConfirmDialog'
 import PullToRefresh from 'pulltorefreshjs'
 
-type ViewMode = 'events' | 'detail' | 'summary' | 'editor' | 'participants'
+type ViewMode = 'events' | 'participants' | 'eventOverview' | 'eventSummary' | 'editor'
 
 function App() {
   const { state, actions } = useLocalStore()
@@ -87,6 +88,20 @@ function App() {
   const eventParticipants = useMemo(() => {
     if (!selectedEvent) return []
     return selectedEvent.participants
+  }, [selectedEvent])
+
+  const eventDateRange = useMemo(() => {
+    if (!selectedEvent?.startDate || !selectedEvent.endDate) {
+      return undefined
+    }
+    try {
+      return new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).formatRange(
+        new Date(selectedEvent.startDate),
+        new Date(selectedEvent.endDate),
+      )
+    } catch {
+      return undefined
+    }
   }, [selectedEvent])
 
   const participantMap = useMemo(() => {
@@ -198,13 +213,13 @@ function App() {
 
   const handleSelectEvent = (eventId: string) => {
     actions.setLastViewedEvent(eventId)
-    setView('detail')
+    setView('eventOverview')
   }
 
   const handleSaveExpense = (draft: ExpenseDraft) => {
     if (!selectedEvent) return
     actions.upsertExpense(selectedEvent.id, draft)
-    setView('detail')
+    setView('eventOverview')
     setEditingExpenseId(null)
   }
 
@@ -390,7 +405,7 @@ function App() {
   const handleCreateEvent = (draft: EventDraft) => {
     const event = actions.createEvent(draft)
     actions.setLastViewedEvent(event.id)
-    setView('detail')
+    setView('eventOverview')
     setIsCreateEventModalOpen(false)
   }
 
@@ -521,6 +536,15 @@ function App() {
 
   const activeView = selectedEvent ? view : 'events'
 
+  useEffect(() => {
+    if (
+      !selectedEvent &&
+      (view === 'eventOverview' || view === 'eventSummary' || view === 'editor')
+    ) {
+      setView('events')
+    }
+  }, [selectedEvent, view])
+
   return (
     <div className="app-shell">
       <header className="app-header">
@@ -528,40 +552,18 @@ function App() {
           <h1 className="app-title">Expense Settler</h1>
           <p className="app-subtitle">A lightweight PWA to split group trips, weekends, and celebrations.</p>
         </div>
-        <nav className="pill-nav" aria-label="Primary views">
-          <button
-            className={`pill-button ${activeView === 'events' ? 'active' : ''}`}
-            onClick={() => setView('events')}
-            type="button"
-          >
-            Events
-          </button>
-          <button
-            className={`pill-button ${view === 'participants' ? 'active' : ''}`}
-            onClick={() => setView('participants')}
-            type="button"
-          >
-            Participants
-          </button>
-          {selectedEvent ? (
-            <>
-              <button
-                className={`pill-button ${activeView === 'detail' ? 'active' : ''}`}
-                onClick={() => setView('detail')}
-                type="button"
-              >
-                Details
-              </button>
-              <button
-                className={`pill-button ${activeView === 'summary' ? 'active' : ''}`}
-                onClick={() => setView('summary')}
-                type="button"
-              >
-                Summary
-              </button>
-            </>
-          ) : null}
-        </nav>
+        <div className="app-header__controls">
+          <PrimaryNav
+            active={view === 'participants' ? 'participants' : 'events'}
+            onChange={(target) => {
+              if (target === 'participants') {
+                setView('participants')
+              } else {
+                setView(selectedEvent ? 'eventOverview' : 'events')
+              }
+            }}
+          />
+        </div>
       </header>
 
       <main className="view-container">
@@ -574,18 +576,11 @@ function App() {
           />
         )}
 
-        {activeView === 'detail' && selectedEvent ? (
+        {activeView === 'eventOverview' && selectedEvent ? (
           <EventDetail
             name={selectedEvent.name}
             currency={selectedEvent.currency}
-            dateRange={
-              selectedEvent.startDate && selectedEvent.endDate
-                ? new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).formatRange(
-                    new Date(selectedEvent.startDate),
-                    new Date(selectedEvent.endDate),
-                  )
-                : undefined
-            }
+            dateRange={eventDateRange}
             location={selectedEvent.location}
             totals={summary.totals}
             participants={eventParticipants}
@@ -594,7 +589,7 @@ function App() {
             groups={state.groups}
             onBack={() => setView('events')}
             onAddExpense={handleAddExpense}
-            onShowSummary={() => setView('summary')}
+            onShowSummary={() => setView('eventSummary')}
             onAddParticipant={handleAddParticipantToEvent}
             onAddExistingParticipant={handleAddExistingParticipantToEvent}
             onAddGroup={handleAddGroupToEvent}
@@ -638,7 +633,7 @@ function App() {
             }}
             onNavigateToEvent={(eventId) => {
               actions.setLastViewedEvent(eventId)
-              setView('detail')
+              setView('eventOverview')
             }}
             onCreateGroup={handleCreateGroup}
             onDeleteGroup={handleDeleteGroup}
@@ -653,7 +648,7 @@ function App() {
             participants={eventParticipants}
             currency={selectedEvent.currency}
             onCancel={() => {
-              setView('detail')
+              setView('eventOverview')
               setEditingExpenseId(null)
             }}
             onSave={handleSaveExpense}
@@ -661,15 +656,19 @@ function App() {
           />
         ) : null}
 
-        {activeView === 'summary' && selectedEvent ? (
+        {activeView === 'eventSummary' && selectedEvent ? (
           <Summary
             eventName={selectedEvent.name}
+            dateRange={eventDateRange}
+            location={selectedEvent.location}
             totals={summary.totals}
             balances={summary.balances}
             settlements={summary.settlements}
-            onBack={() => setView('detail')}
+            onBack={() => setView('eventOverview')}
             currency={selectedEvent.currency}
             onSettlementClick={handleSettlementClick}
+            expenseCount={selectedEvent.expenses.length}
+            onNavigateToOverview={() => setView('eventOverview')}
           />
         ) : null}
       </main>

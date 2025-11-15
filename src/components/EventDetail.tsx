@@ -2,6 +2,8 @@ import { useMemo, useState, useRef, useEffect } from 'react'
 import type { FormEvent, KeyboardEvent } from 'react'
 import type { ConfirmationOptions } from './ConfirmDialog'
 import type { Participant, ParticipantGroup, ParticipantId } from '../types/domain'
+import { EventSubNav } from './EventSubNav'
+import { EventHeader } from './EventHeader'
 
 type ParticipantProfile = {
   id: string
@@ -86,6 +88,7 @@ export function EventDetail({
   const [ambiguousMatches, setAmbiguousMatches] = useState<Participant[]>([])
   const inputRef = useRef<HTMLInputElement>(null)
   const suggestionsRef = useRef<HTMLDivElement>(null)
+  const expensesSectionRef = useRef<HTMLDivElement>(null)
 
   const trimmedParticipantName = participantName.trim()
   
@@ -243,80 +246,34 @@ export function EventDetail({
 
   return (
     <section className="surface view-section">
-      <header className="section-header">
-        <button className="ghost-button" onClick={onBack}>
-          ← Events
+      <div className="event-top-stack">
+        <button className="back-button" onClick={onBack}>
+          ← Events List
         </button>
-        <div className="section-heading section-heading--event">
-          <div className="section-heading__row">
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1 }}>
-              <h2 className="section-title">{name}</h2>
-              <button
-                type="button"
-                className="edit-name-button"
-                aria-label="Edit event name"
-                onClick={onEditEventName}
-              >
-                <svg
-                  aria-hidden="true"
-                  width="14"
-                  height="14"
-                  viewBox="0 0 16 16"
-                  fill="none"
-                  xmlns="http://www.w3.org/2000/svg"
-                >
-                  <path
-                    d="M11.5 1.5L14.5 4.5L5.5 13.5L2.5 10.5L11.5 1.5Z"
-                    stroke="currentColor"
-                    strokeWidth="1.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                  <path
-                    d="M9.5 3.5L12.5 6.5"
-                    stroke="currentColor"
-                    strokeWidth="1.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                  <path
-                    d="M2.5 10.5L1.5 14.5L5.5 13.5"
-                    stroke="currentColor"
-                    strokeWidth="1.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-              </button>
-            </div>
-            <button
-              type="button"
-              className="icon-button icon-button--danger"
-              aria-label="Delete event"
-              onClick={() => {
-                void onDeleteEvent()
-              }}
-            >
-              <span aria-hidden>×</span>
-            </button>
-          </div>
-          <div className="meta">
-            {dateRange && <span>{dateRange}</span>}
-            {location && <span>{location}</span>}
-            <span>{participants.length} participants</span>
-            <span>{expenses.length} {expenses.length === 1 ? 'expense' : 'expenses'}</span>
-            <span>{totalFormatted}</span>
-          </div>
-        </div>
-        <div className="header-actions">
-          <button className="ghost-button" onClick={onShowSummary}>
-            <strong>Settle</strong>
-          </button>
-          <button className="primary-button" onClick={onAddExpense}>
-            Add expense
-          </button>
-        </div>
-      </header>
+        <EventHeader
+          name={name}
+          dateRange={dateRange}
+          location={location}
+          participantsCount={participants.length}
+          expenseCount={expenses.length}
+          totalLabel={totalFormatted}
+          onEdit={onEditEventName}
+          onDelete={() => {
+            void onDeleteEvent()
+          }}
+        />
+        <EventSubNav
+          activeTab="expenses"
+          onSelectExpenses={() => {
+            if (expensesSectionRef.current) {
+              expensesSectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' })
+            } else {
+              window.scrollTo({ top: 0, behavior: 'smooth' })
+            }
+          }}
+          onSelectSettle={onShowSummary}
+        />
+      </div>
 
       <section aria-labelledby="participants-heading" className="participants-panel">
         <div className="panel-heading">
@@ -516,7 +473,7 @@ export function EventDetail({
         )}
       </section>
 
-      <section aria-labelledby="expenses-heading">
+      <section aria-labelledby="expenses-heading" ref={expensesSectionRef}>
         <div className="panel-heading">
           <h3 id="expenses-heading">Expenses</h3>
           <div className="panel-heading__actions">

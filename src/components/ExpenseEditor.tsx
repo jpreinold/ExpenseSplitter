@@ -300,7 +300,7 @@ export function ExpenseEditor({
   return (
     <section className="surface view-section">
       <header className="section-header">
-        <button className="ghost-button" onClick={onCancel}>
+        <button className="back-button" onClick={onCancel}>
           ← Back
         </button>
         <div className="section-heading">
