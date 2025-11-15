@@ -220,8 +220,9 @@ export function ParticipantImportModal({
                 <h3 style={{ marginBottom: '1rem', fontSize: '1rem', fontWeight: '600' }}>Events</h3>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                   {otherEvents.map((event) => {
-                    const eventSelections = eventParticipantSelections.get(event.id) ?? new Set(event.participants.map((p) => p.id))
-                    const allSelected = event.participants.length > 0 && event.participants.every((p) => eventSelections.has(p.id))
+                    const eventSelections =
+                      eventParticipantSelections.get(event.id) ??
+                      new Set(event.participants.map((p) => p.id))
                     return (
                       <div key={event.id} style={{ border: '1px solid var(--color-border)', borderRadius: '0.5rem', padding: '1rem' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>

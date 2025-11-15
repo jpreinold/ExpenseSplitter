@@ -274,9 +274,6 @@ export function ParticipantsTab({
             <ul className="participant-pill-list" style={{ marginTop: '1rem' }}>
               {uniqueParticipants.map((participant) => {
                 const isSelected = selectedParticipantIds.has(participant.id)
-                const participantEvents = events.filter((e) => e.participants.some((p) => p.id === participant.id))
-                const firstEventId = participantEvents[0]?.id
-
                 return (
                   <li
                     key={participant.id}
