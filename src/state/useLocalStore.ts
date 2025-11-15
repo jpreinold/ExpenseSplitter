@@ -6,6 +6,7 @@ import type {
   ExpenseId,
   Participant,
   ParticipantId,
+  ParticipantGroup,
   PayerAllocation,
   SettlementTracking,
   SplitInstruction,
@@ -14,7 +15,7 @@ import type {
 } from '../types/domain'
 
 const STORAGE_KEY = 'split-expense::state'
-const CURRENT_VERSION = 1
+const CURRENT_VERSION = 3
 
 type EventMetaUpdates = Partial<Pick<Event, 'name' | 'description' | 'location' | 'startDate' | 'endDate' | 'currency' | 'archived'>>
 
@@ -48,6 +49,12 @@ type EventDraft = {
   participants?: ParticipantDraft[]
 }
 
+type GroupDraft = {
+  id?: string
+  name: string
+  participantIds: ParticipantId[]
+}
+
 type Action =
   | { type: 'replace'; state: SplitState }
   | { type: 'create-event'; event: Event }
@@ -61,6 +68,13 @@ type Action =
   | { type: 'add-settlement-payment'; eventId: EventId; fromId: ParticipantId; toId: ParticipantId; amount: number; settlementAmount: number }
   | { type: 'remove-settlement-payment'; eventId: EventId; fromId: ParticipantId; toId: ParticipantId; paymentId: string; settlementAmount: number }
   | { type: 'mark-settlement-complete'; eventId: EventId; fromId: ParticipantId; toId: ParticipantId; complete: boolean }
+  | { type: 'create-group'; group: ParticipantGroup }
+  | { type: 'update-group'; groupId: string; updates: Partial<Pick<ParticipantGroup, 'name' | 'participantIds'>> }
+  | { type: 'delete-group'; groupId: string }
+  | { type: 'update-participant-id'; eventId: EventId; participantId: ParticipantId; newId: ParticipantId }
+  | { type: 'create-unassigned-participant'; participant: Participant }
+  | { type: 'remove-unassigned-participant'; participantId: ParticipantId }
+  | { type: 'delete-participant-completely'; participantId: ParticipantId }
 
 function createId(prefix: string) {
   const random = cryptoRandomId()
@@ -72,6 +86,12 @@ function cryptoRandomId() {
     return crypto.randomUUID().split('-')[0]
   }
   return Math.random().toString(36).slice(2, 10)
+}
+
+function generateParticipantId(name: string): string {
+  const baseId = name.toLowerCase().replace(/\s+/g, '')
+  const randomString = cryptoRandomId()
+  return `${baseId}${randomString}`
 }
 
 function nowIso() {
@@ -162,7 +182,7 @@ function removeParticipantFromSplit(split: SplitInstruction, participantId: Part
 function createParticipant(draft: ParticipantDraft): Participant {
   const timestamp = nowIso()
   return {
-    id: draft.id ?? createId('participant'),
+    id: draft.id ?? generateParticipantId(draft.name),
     name: draft.name.trim(),
     color: draft.color,
     createdAt: timestamp,
@@ -238,6 +258,21 @@ function createEventEntity(draft: EventDraft): Event {
 
 function ensureEventUpdated(event: Event): Event {
   return { ...event, updatedAt: nowIso() }
+}
+
+function createGroupEntity(draft: GroupDraft): ParticipantGroup {
+  const timestamp = nowIso()
+  return {
+    id: draft.id ?? createId('group'),
+    name: draft.name.trim(),
+    participantIds: draft.participantIds,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  }
+}
+
+function ensureGroupUpdated(group: ParticipantGroup): ParticipantGroup {
+  return { ...group, updatedAt: nowIso() }
 }
 
 function getOrCreateSettlementTracking(
@@ -334,9 +369,16 @@ function reducer(state: SplitState, action: Action): SplitState {
       return { ...state, events }
     }
     case 'remove-participant': {
+      let removedParticipant: Participant | null = null
       const events = state.events.map((event) => {
         if (event.id !== action.eventId) return event
-        const participants = event.participants.filter((participant) => participant.id !== action.participantId)
+        const participants = event.participants.filter((participant) => {
+          if (participant.id === action.participantId) {
+            removedParticipant = participant
+            return false
+          }
+          return true
+        })
         const expenses = event.expenses.map((expense) => ({
           ...expense,
           paidBy: expense.paidBy.filter((payer) => payer.participantId !== action.participantId),
@@ -348,7 +390,21 @@ function reducer(state: SplitState, action: Action): SplitState {
           expenses,
         })
       })
-      return { ...state, events }
+
+      let unassignedParticipants = state.unassignedParticipants
+      if (removedParticipant) {
+        const stillInEvents = events.some((event) =>
+          event.participants.some((participant) => participant.id === removedParticipant!.id),
+        )
+        const alreadyUnassigned = unassignedParticipants.some(
+          (participant) => participant.id === removedParticipant!.id,
+        )
+        if (!stillInEvents && !alreadyUnassigned) {
+          unassignedParticipants = [...unassignedParticipants, removedParticipant]
+        }
+      }
+
+      return { ...state, events, unassignedParticipants }
     }
     case 'upsert-expense': {
       const events = state.events.map((event) => {
@@ -430,6 +486,127 @@ function reducer(state: SplitState, action: Action): SplitState {
       })
       return { ...state, events }
     }
+    case 'create-group': {
+      const groups = [...state.groups, action.group]
+      return { ...state, groups }
+    }
+    case 'update-group': {
+      const groups = state.groups.map((group) => {
+        if (group.id !== action.groupId) return group
+        return ensureGroupUpdated({
+          ...group,
+          ...action.updates,
+        })
+      })
+      return { ...state, groups }
+    }
+    case 'delete-group': {
+      const groups = state.groups.filter((group) => group.id !== action.groupId)
+      return { ...state, groups }
+    }
+    case 'update-participant-id': {
+      // Update participant ID across all events and groups
+      const events = state.events.map((event) => {
+        const participantIndex = event.participants.findIndex((p) => p.id === action.participantId)
+        if (participantIndex === -1) return event
+
+        const updatedParticipants = event.participants.map((p) =>
+          p.id === action.participantId ? { ...p, id: action.newId } : p,
+        )
+
+        const updatedExpenses = event.expenses.map((expense) => {
+          const updatedPaidBy = expense.paidBy.map((payer) =>
+            payer.participantId === action.participantId ? { ...payer, participantId: action.newId } : payer,
+          )
+
+          let updatedSplit = expense.split
+          if (expense.split.type === 'even') {
+            updatedSplit = {
+              ...expense.split,
+              participantIds: expense.split.participantIds.map((id) => (id === action.participantId ? action.newId : id)),
+            }
+          } else if (expense.split.type === 'shares') {
+            updatedSplit = {
+              ...expense.split,
+              shares: expense.split.shares.map((share) =>
+                share.participantId === action.participantId ? { ...share, participantId: action.newId } : share,
+              ),
+            }
+          } else if (expense.split.type === 'exact') {
+            updatedSplit = {
+              ...expense.split,
+              allocations: expense.split.allocations.map((allocation) =>
+                allocation.participantId === action.participantId ? { ...allocation, participantId: action.newId } : allocation,
+              ),
+            }
+          }
+
+          return {
+            ...expense,
+            paidBy: updatedPaidBy,
+            split: updatedSplit,
+          }
+        })
+
+        const updatedSettlementTracking = event.settlementTracking?.map((tracking) => ({
+          ...tracking,
+          fromParticipantId: tracking.fromParticipantId === action.participantId ? action.newId : tracking.fromParticipantId,
+          toParticipantId: tracking.toParticipantId === action.participantId ? action.newId : tracking.toParticipantId,
+        }))
+
+        return ensureEventUpdated({
+          ...event,
+          participants: updatedParticipants,
+          expenses: updatedExpenses,
+          settlementTracking: updatedSettlementTracking,
+        })
+      })
+
+      const groups = state.groups.map((group) => ({
+        ...group,
+        participantIds: group.participantIds.map((id) => (id === action.participantId ? action.newId : id)),
+      }))
+
+      return { ...state, events, groups }
+    }
+    case 'create-unassigned-participant': {
+      const unassignedParticipants = [...state.unassignedParticipants, action.participant]
+      return { ...state, unassignedParticipants }
+    }
+    case 'remove-unassigned-participant': {
+      const unassignedParticipants = state.unassignedParticipants.filter((p) => p.id !== action.participantId)
+      return { ...state, unassignedParticipants }
+    }
+    case 'delete-participant-completely': {
+      // Remove from all events
+      const events = state.events.map((event) => {
+        const participantIndex = event.participants.findIndex((p) => p.id === action.participantId)
+        if (participantIndex === -1) return event
+
+        const participants = event.participants.filter((p) => p.id !== action.participantId)
+        const expenses = event.expenses.map((expense) => ({
+          ...expense,
+          paidBy: expense.paidBy.filter((payer) => payer.participantId !== action.participantId),
+          split: removeParticipantFromSplit(expense.split, action.participantId),
+        }))
+        return ensureEventUpdated({
+          ...event,
+          participants,
+          expenses,
+        })
+      })
+
+      // Remove from unassigned participants
+      const unassignedParticipants = state.unassignedParticipants.filter((p) => p.id !== action.participantId)
+
+      // Remove from groups (remove participant ID from all groups)
+      const groups = state.groups.map((group) => ({
+        ...group,
+        participantIds: group.participantIds.filter((id) => id !== action.participantId),
+      })).filter((group) => group.participantIds.length > 0) // Remove empty groups
+
+      return { ...state, events, unassignedParticipants, groups }
+    }
     default:
       return state
   }
@@ -477,10 +654,18 @@ function migrateToLatest(state: Partial<SplitState>): SplitState {
     })),
   }))
 
+  // Migrate from version 1 to 2: add groups array
+  const groups = state.version === 1 ? [] : (state.groups ?? [])
+  
+  // Migrate from version 2 to 3: add unassignedParticipants array
+  const unassignedParticipants = state.version < 3 ? [] : (state.unassignedParticipants ?? [])
+
   return {
     version: CURRENT_VERSION,
     lastViewedEventId: state.lastViewedEventId,
     events,
+    groups,
+    unassignedParticipants,
   }
 }
 
@@ -505,6 +690,8 @@ function createDemoState(): SplitState {
     version: CURRENT_VERSION,
     lastViewedEventId: undefined,
     events: [],
+    groups: [],
+    unassignedParticipants: [],
   }
 }
 
@@ -615,6 +802,55 @@ export function useLocalStore() {
     dispatch({ type: 'replace', state: createDemoState() })
   }, [])
 
+  const createGroup = useCallback((draft: GroupDraft) => {
+    const group = createGroupEntity(draft)
+    dispatch({ type: 'create-group', group })
+    return group
+  }, [])
+
+  const updateGroup = useCallback((groupId: string, updates: Partial<Pick<ParticipantGroup, 'name' | 'participantIds'>>) => {
+    dispatch({ type: 'update-group', groupId, updates })
+  }, [])
+
+  const deleteGroup = useCallback((groupId: string) => {
+    dispatch({ type: 'delete-group', groupId })
+  }, [])
+
+  const updateParticipantId = useCallback((eventId: EventId, participantId: ParticipantId, newId: ParticipantId) => {
+    // Validate ID uniqueness across all events and unassigned participants
+    const allParticipantIds = new Set<string>()
+    stateRef.current.events.forEach((event) => {
+      event.participants.forEach((p) => {
+        if (p.id !== participantId) {
+          allParticipantIds.add(p.id)
+        }
+      })
+    })
+    stateRef.current.unassignedParticipants.forEach((p) => {
+      if (p.id !== participantId) {
+        allParticipantIds.add(p.id)
+      }
+    })
+    if (allParticipantIds.has(newId)) {
+      throw new Error('Participant ID already exists')
+    }
+    dispatch({ type: 'update-participant-id', eventId, participantId, newId })
+  }, [])
+
+  const createUnassignedParticipant = useCallback((draft: ParticipantDraft) => {
+    const participant = createParticipant(draft)
+    dispatch({ type: 'create-unassigned-participant', participant })
+    return participant
+  }, [])
+
+  const removeUnassignedParticipant = useCallback((participantId: ParticipantId) => {
+    dispatch({ type: 'remove-unassigned-participant', participantId })
+  }, [])
+
+  const deleteParticipantCompletely = useCallback((participantId: ParticipantId) => {
+    dispatch({ type: 'delete-participant-completely', participantId })
+  }, [])
+
   return {
     state,
     actions: {
@@ -629,11 +865,18 @@ export function useLocalStore() {
       addSettlementPayment,
       removeSettlementPayment,
       markSettlementComplete,
+      createGroup,
+      updateGroup,
+      deleteGroup,
+      updateParticipantId,
+      createUnassignedParticipant,
+      removeUnassignedParticipant,
+      deleteParticipantCompletely,
       replaceState,
       resetToDemo,
     },
   }
 }
 
-export type { EventDraft, ExpenseDraft, ParticipantDraft, SplitStrategy }
+export type { EventDraft, ExpenseDraft, GroupDraft, ParticipantDraft, SplitStrategy }
 

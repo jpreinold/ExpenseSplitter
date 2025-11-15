@@ -99,7 +99,13 @@ function buildSplitInstruction(
   }
 }
 
-export function ExpenseEditor({ participants, currency, onCancel, onSave, initialExpense }: ExpenseEditorProps) {
+export function ExpenseEditor({
+  participants,
+  currency,
+  onCancel,
+  onSave,
+  initialExpense,
+}: ExpenseEditorProps) {
   const [description, setDescription] = useState('')
   const [amount, setAmount] = useState('')
   const [date, setDate] = useState('')
@@ -222,10 +228,13 @@ export function ExpenseEditor({ participants, currency, onCancel, onSave, initia
     if (currentlySelected && selectedParticipants.length <= 1) {
       return
     }
-    setSelected((prev) => ({
-      ...prev,
+
+    const newSelection = {
+      ...selected,
       [participantId]: !currentlySelected,
-    }))
+    }
+
+    setSelected(newSelection)
   }
 
   const handleWeightChange = (participantId: string, value: string) => {
@@ -484,6 +493,7 @@ export function ExpenseEditor({ participants, currency, onCancel, onSave, initia
           </button>
         </div>
       </form>
+
     </section>
   )
 }

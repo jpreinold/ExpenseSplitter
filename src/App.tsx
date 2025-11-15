@@ -8,14 +8,17 @@ import { Summary } from './components/Summary'
 import { SettlementDetailModal } from './components/SettlementDetailModal'
 import { ParticipantEditModal } from './components/ParticipantEditModal'
 import { EventNameEditModal } from './components/EventNameEditModal'
+import { ParticipantsTab } from './components/ParticipantsTab'
 import { useLocalStore } from './state/useLocalStore'
-import type { EventDraft, ExpenseDraft } from './state/useLocalStore'
+import type { EventDraft, ExpenseDraft, GroupDraft } from './state/useLocalStore'
 import { calculateEventBalances, describeSplit, suggestSettlements } from './utils/calculations'
+import { getAllParticipants } from './utils/participants'
+import type { Participant } from './types/domain'
 import { ConfirmDialog } from './components/ConfirmDialog'
 import type { ConfirmationOptions } from './components/ConfirmDialog'
 import PullToRefresh from 'pulltorefreshjs'
 
-type ViewMode = 'events' | 'detail' | 'summary' | 'editor'
+type ViewMode = 'events' | 'detail' | 'summary' | 'editor' | 'participants'
 
 function App() {
   const { state, actions } = useLocalStore()
@@ -25,8 +28,10 @@ function App() {
   const [isCreateEventModalOpen, setIsCreateEventModalOpen] = useState(false)
   const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null)
   const [editingParticipantId, setEditingParticipantId] = useState<string | null>(null)
+  const [editingParticipantEventId, setEditingParticipantEventId] = useState<string | null>(null)
   const [isEditingEventName, setIsEditingEventName] = useState(false)
   const [openSettlement, setOpenSettlement] = useState<{ fromId: string; toId: string } | null>(null)
+  const [participantIdError, setParticipantIdError] = useState<string | null>(null)
   const [confirmState, setConfirmState] = useState<(ConfirmationOptions & { resolve: (value: boolean) => void }) | null>(
     null,
   )
@@ -208,6 +213,37 @@ function App() {
     actions.upsertParticipant(selectedEvent.id, { name })
   }
 
+  const handleAddExistingParticipantToEvent = (participantId: string) => {
+    if (!selectedEvent) return
+    const participant = allParticipants.find((p) => p.id === participantId)
+    if (participant && !selectedEvent.participants.find((p) => p.id === participantId)) {
+      actions.upsertParticipant(selectedEvent.id, { id: participant.id, name: participant.name })
+      // Remove from unassigned if it was there
+      const unassignedParticipant = state.unassignedParticipants.find((p) => p.id === participantId)
+      if (unassignedParticipant) {
+        actions.removeUnassignedParticipant(participantId)
+      }
+    }
+  }
+
+  const handleAddGroupToEvent = (groupId: string) => {
+    if (!selectedEvent) return
+    const group = state.groups.find((g) => g.id === groupId)
+    if (!group) return
+    
+    group.participantIds.forEach((participantId) => {
+      const participant = allParticipants.find((p) => p.id === participantId) ||
+        state.unassignedParticipants.find((p) => p.id === participantId)
+      if (participant && !selectedEvent.participants.find((p) => p.id === participantId)) {
+        actions.upsertParticipant(selectedEvent.id, { id: participant.id, name: participant.name })
+        // Remove from unassigned if it was there
+        if (state.unassignedParticipants.find((p) => p.id === participantId)) {
+          actions.removeUnassignedParticipant(participantId)
+        }
+      }
+    })
+  }
+
   const handleRemoveParticipantFromEvent = (participantId: string) => {
     if (!selectedEvent) return
     actions.removeParticipant(selectedEvent.id, participantId)
@@ -215,16 +251,113 @@ function App() {
 
   const handleEditParticipant = (participantId: string) => {
     setEditingParticipantId(participantId)
+    if (selectedEvent) {
+      setEditingParticipantEventId(selectedEvent.id)
+    }
+  }
+
+  const handleEditParticipantFromTab = (participantId: string, eventId: string) => {
+    setEditingParticipantId(participantId)
+    setEditingParticipantEventId(eventId)
   }
 
   const handleCloseParticipantEditModal = () => {
     setEditingParticipantId(null)
+    setEditingParticipantEventId(null)
+    setParticipantIdError(null)
   }
 
-  const handleSaveParticipantName = (name: string) => {
-    if (!selectedEvent || !editingParticipantId) return
-    actions.upsertParticipant(selectedEvent.id, { id: editingParticipantId, name })
-    setEditingParticipantId(null)
+  const handleSaveParticipant = (name: string, newId?: string) => {
+    if (!editingParticipantId) return
+    
+    // Check if participant is unassigned
+    const unassignedParticipant = state.unassignedParticipants.find((p) => p.id === editingParticipantId)
+    
+    if (unassignedParticipant) {
+      // Handle unassigned participant editing
+      try {
+        if (newId && newId !== unassignedParticipant.id) {
+          // Check if new ID already exists
+          const allParticipantIds = new Set<string>()
+          events.forEach((e) => {
+            e.participants.forEach((p) => {
+              if (p.id !== editingParticipantId) allParticipantIds.add(p.id)
+            })
+          })
+          state.unassignedParticipants.forEach((p) => {
+            if (p.id !== editingParticipantId) allParticipantIds.add(p.id)
+          })
+          
+          if (allParticipantIds.has(newId)) {
+            setParticipantIdError('This ID is already in use by another participant')
+            return
+          }
+          
+          // Update ID in unassigned participants
+          const updatedUnassigned = state.unassignedParticipants.map((p) =>
+            p.id === editingParticipantId ? { ...p, id: newId, name } : p
+          )
+          // Also need to update in groups
+          const updatedGroups = state.groups.map((group) => ({
+            ...group,
+            participantIds: group.participantIds.map((id) => (id === editingParticipantId ? newId : id)),
+          }))
+          
+          // Update state manually for unassigned participants
+          actions.replaceState({
+            ...state,
+            unassignedParticipants: updatedUnassigned,
+            groups: updatedGroups,
+          })
+        } else {
+          // Just update name
+          const updatedUnassigned = state.unassignedParticipants.map((p) =>
+            p.id === editingParticipantId ? { ...p, name } : p
+          )
+          actions.replaceState({
+            ...state,
+            unassignedParticipants: updatedUnassigned,
+          })
+        }
+        
+        setEditingParticipantId(null)
+        setEditingParticipantEventId(null)
+        setParticipantIdError(null)
+      } catch (error) {
+        if (error instanceof Error && error.message === 'Participant ID already exists') {
+          setParticipantIdError('This ID is already in use by another participant')
+        } else {
+          setParticipantIdError('Failed to update participant ID')
+        }
+      }
+      return
+    }
+    
+    // Handle event participant editing
+    if (!editingParticipantEventId) return
+    const event = events.find((e) => e.id === editingParticipantEventId)
+    if (!event) return
+
+    const participant = event.participants.find((p) => p.id === editingParticipantId)
+    if (!participant) return
+
+    try {
+      if (newId && newId !== participant.id) {
+        // Update participant ID
+        actions.updateParticipantId(editingParticipantEventId, participant.id, newId)
+      }
+      // Update participant name
+      actions.upsertParticipant(editingParticipantEventId, { id: newId ?? participant.id, name })
+      setEditingParticipantId(null)
+      setEditingParticipantEventId(null)
+      setParticipantIdError(null)
+    } catch (error) {
+      if (error instanceof Error && error.message === 'Participant ID already exists') {
+        setParticipantIdError('This ID is already in use by another participant')
+      } else {
+        setParticipantIdError('Failed to update participant ID')
+      }
+    }
   }
 
   const handleEditEventName = () => {
@@ -361,6 +494,30 @@ function App() {
     )
   }
 
+  const handleNavigateToParticipantsTab = () => {
+    setView('participants')
+  }
+
+  const handleCreateGroup = (draft: GroupDraft) => {
+    actions.createGroup(draft)
+  }
+
+  const handleDeleteGroup = (groupId: string) => {
+    actions.deleteGroup(groupId)
+  }
+
+  const allParticipants = useMemo(() => {
+    const eventParticipants = getAllParticipants(events)
+    const all = [...eventParticipants, ...state.unassignedParticipants]
+    // Deduplicate by ID
+    const participantMap = new Map<string, Participant>()
+    all.forEach((p) => {
+      if (!participantMap.has(p.id)) {
+        participantMap.set(p.id, p)
+      }
+    })
+    return Array.from(participantMap.values())
+  }, [events, state.unassignedParticipants])
 
   const activeView = selectedEvent ? view : 'events'
 
@@ -378,6 +535,13 @@ function App() {
             type="button"
           >
             Events
+          </button>
+          <button
+            className={`pill-button ${view === 'participants' ? 'active' : ''}`}
+            onClick={() => setView('participants')}
+            type="button"
+          >
+            Participants
           </button>
           {selectedEvent ? (
             <>
@@ -426,19 +590,63 @@ function App() {
             totals={summary.totals}
             participants={eventParticipants}
             expenses={eventExpensePreviews}
+            allParticipants={allParticipants}
+            groups={state.groups}
             onBack={() => setView('events')}
             onAddExpense={handleAddExpense}
             onShowSummary={() => setView('summary')}
             onAddParticipant={handleAddParticipantToEvent}
+            onAddExistingParticipant={handleAddExistingParticipantToEvent}
+            onAddGroup={handleAddGroupToEvent}
             onRemoveParticipant={handleRemoveParticipantFromEvent}
             onEditParticipant={handleEditParticipant}
             onEditEventName={handleEditEventName}
             onRemoveExpense={handleRemoveExpense}
             onEditExpense={handleEditExpense}
             onDeleteEvent={() => handleDeleteEvent(selectedEvent.id)}
+            onNavigateToParticipants={handleNavigateToParticipantsTab}
             requestConfirmation={requestConfirmation}
           />
         ) : null}
+
+        {view === 'participants' && (
+          <ParticipantsTab
+            events={events}
+            groups={state.groups}
+            participants={allParticipants}
+            unassignedParticipants={state.unassignedParticipants}
+            onEditParticipant={handleEditParticipantFromTab}
+            onDeleteParticipant={(participantId) => {
+              actions.deleteParticipantCompletely(participantId)
+            }}
+            onCreateParticipant={(name) => {
+              actions.createUnassignedParticipant({ name })
+            }}
+            onAddParticipantsToEvent={(participantIds, eventId) => {
+              participantIds.forEach((participantId) => {
+                // Check if participant is in unassigned or in other events
+                const unassignedParticipant = state.unassignedParticipants.find((p) => p.id === participantId)
+                const participant = unassignedParticipant || allParticipants.find((p) => p.id === participantId)
+                if (participant && !events.find((e) => e.id === eventId)?.participants.find((p) => p.id === participantId)) {
+                  actions.upsertParticipant(eventId, { id: participant.id, name: participant.name })
+                  // Remove from unassigned if it was there
+                  if (unassignedParticipant) {
+                    actions.removeUnassignedParticipant(participantId)
+                  }
+                }
+              })
+            }}
+            onNavigateToEvent={(eventId) => {
+              actions.setLastViewedEvent(eventId)
+              setView('detail')
+            }}
+            onCreateGroup={handleCreateGroup}
+            onDeleteGroup={handleDeleteGroup}
+            onUpdateGroup={(groupId, updates) => {
+              actions.updateGroup(groupId, updates)
+            }}
+          />
+        )}
 
         {activeView === 'editor' && selectedEvent ? (
           <ExpenseEditor
@@ -504,12 +712,30 @@ function App() {
         />
       )}
 
-      {editingParticipantId && selectedEvent && (
+      {editingParticipantId && (
         <ParticipantEditModal
           isOpen={Boolean(editingParticipantId)}
           onClose={handleCloseParticipantEditModal}
-          onSave={handleSaveParticipantName}
-          currentName={eventParticipants.find((p) => p.id === editingParticipantId)?.name ?? ''}
+          onSave={handleSaveParticipant}
+          currentName={
+            editingParticipantEventId
+              ? events
+                  .find((e) => e.id === editingParticipantEventId)
+                  ?.participants.find((p) => p.id === editingParticipantId)?.name ??
+                state.unassignedParticipants.find((p) => p.id === editingParticipantId)?.name ??
+                ''
+              : state.unassignedParticipants.find((p) => p.id === editingParticipantId)?.name ?? ''
+          }
+          currentId={
+            editingParticipantEventId
+              ? events
+                  .find((e) => e.id === editingParticipantEventId)
+                  ?.participants.find((p) => p.id === editingParticipantId)?.id ??
+                state.unassignedParticipants.find((p) => p.id === editingParticipantId)?.id
+              : state.unassignedParticipants.find((p) => p.id === editingParticipantId)?.id
+          }
+          allowIdEdit={view === 'participants'}
+          idError={participantIdError}
         />
       )}
 

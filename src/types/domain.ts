@@ -83,9 +83,19 @@ export interface SettlementTracking {
   markedCompleteAt?: string
 }
 
+export interface ParticipantGroup {
+  id: string
+  name: string
+  participantIds: ParticipantId[]
+  createdAt: string
+  updatedAt: string
+}
+
 export interface SplitState {
   version: number
   lastViewedEventId?: EventId
   events: Event[]
+  groups: ParticipantGroup[]
+  unassignedParticipants: Participant[]
 }
 
