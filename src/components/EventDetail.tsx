@@ -281,15 +281,15 @@ export function EventDetail({
             <h3 id="participants-heading">Participants</h3>
             <button
               type="button"
-              className="edit-name-button"
+              className="edit-name-button edit-name-button--import"
               aria-label="Open participants tab"
               onClick={onNavigateToParticipants}
-              style={{ padding: '0.1rem', lineHeight: 0 }}
+              style={{ padding: '0.05rem', lineHeight: 0 }}
             >
               <svg
                 aria-hidden="true"
-                width="24"
-                height="24"
+                width="32"
+                height="32"
                 viewBox="0 0 24 24"
                 fill="none"
                 xmlns="http://www.w3.org/2000/svg"
@@ -298,21 +298,21 @@ export function EventDetail({
                 <path
                   d="M12 4V14"
                   stroke="currentColor"
-                  strokeWidth="1.8"
+                  strokeWidth="2.2"
                   strokeLinecap="round"
                   strokeLinejoin="round"
                 />
                 <path
                   d="M8 10L12 14L16 10"
                   stroke="currentColor"
-                  strokeWidth="1.8"
+                  strokeWidth="2.2"
                   strokeLinecap="round"
                   strokeLinejoin="round"
                 />
                 <path
                   d="M6 18H18"
                   stroke="currentColor"
-                  strokeWidth="1.8"
+                  strokeWidth="2.2"
                   strokeLinecap="round"
                   strokeLinejoin="round"
                 />

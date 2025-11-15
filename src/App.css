@@ -1232,6 +1232,11 @@
   height: 14px;
 }
 
+.edit-name-button--import svg {
+  width: 20px;
+  height: 20px;
+}
+
 .modal-overlay {
   position: fixed;
   inset: 0;
