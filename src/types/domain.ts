@@ -40,6 +40,34 @@ export interface ExactSplit {
 export type SplitInstruction = EvenSplit | ShareSplit | ExactSplit
 export type SplitStrategy = SplitInstruction['type']
 
+export interface ReceiptImageAttachment {
+  id: string
+  name: string
+  dataUrl: string
+  capturedAt: string
+}
+
+export interface ReceiptLineItem {
+  id: string
+  description: string
+  amount: number
+  assignedParticipantIds: ParticipantId[]
+  confidence?: number
+  sourceText?: string
+}
+
+export interface ReceiptMetadata {
+  image: ReceiptImageAttachment
+  items: ReceiptLineItem[]
+  subtotal?: number
+  tax?: number
+  tip?: number
+  total?: number
+  currency?: string
+  rawText?: string
+  ocrProvider?: string
+}
+
 export interface Expense {
   id: ExpenseId
   description: string
@@ -51,6 +79,7 @@ export interface Expense {
   notes?: string
   paidBy: PayerAllocation[]
   split: SplitInstruction
+  receipt?: ReceiptMetadata
 }
 
 export interface Event {

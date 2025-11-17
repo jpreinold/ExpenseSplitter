@@ -3,8 +3,12 @@ import type { ChangeEvent, FormEvent } from 'react'
 import type { ExpenseDraft, SplitStrategy } from '../state/useLocalStore'
 import { calculateExpenseShares } from '../utils/calculations'
 import type { ParticipantProfile } from './EventDetail'
-import type { Expense } from '../types/domain'
+import type { Expense, ReceiptMetadata } from '../types/domain'
 import { TaxTipToolModal } from './TaxTipToolModal'
+import { ReceiptSplitModal } from './ReceiptSplit/ReceiptSplitModal'
+import type { ReceiptSplitResult } from './ReceiptSplit/ReceiptSplitModal'
+import { OpenAiKeyModal } from './OpenAiKeyModal'
+import { useOpenAiApiKey } from '../hooks/useOpenAiApiKey'
 
 type SplitMode = SplitStrategy
 
@@ -118,6 +122,11 @@ export function ExpenseEditor({
   const [note, setNote] = useState(initialExpense?.notes ?? '')
   const [isTaxTipToolOpen, setIsTaxTipToolOpen] = useState(false)
   const [originalAmountsForTool, setOriginalAmountsForTool] = useState<AmountMap>({})
+  const [isReceiptModalOpen, setIsReceiptModalOpen] = useState(false)
+  const [receiptAttachment, setReceiptAttachment] = useState<ReceiptMetadata | undefined>(initialExpense?.receipt)
+  const { apiKey: openAiApiKey, saveKey: saveOpenAiApiKey, clearKey: clearOpenAiApiKey } = useOpenAiApiKey()
+  const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState(false)
+  const [shouldOpenReceiptAfterKey, setShouldOpenReceiptAfterKey] = useState(false)
 
   const currencyFormatter = useMemo(
     () =>
@@ -137,6 +146,7 @@ export function ExpenseEditor({
       setPaidBy(initialExpense.paidBy[0]?.participantId ?? defaultPayer)
       setSplitMode(initialExpense.split.type)
       setNote(initialExpense.notes ?? '')
+      setReceiptAttachment(initialExpense.receipt)
 
       const createdDate =
         initialExpense.createdAt && Number.isFinite(Date.parse(initialExpense.createdAt))
@@ -180,6 +190,7 @@ export function ExpenseEditor({
       setWeights(initializeWeights(participants))
       setAmounts(initializeAmounts(participants))
       setNote('')
+      setReceiptAttachment(undefined)
     }
   }, [initialExpense, participants])
 
@@ -211,6 +222,7 @@ export function ExpenseEditor({
       split,
       notes: note.trim() || undefined,
       createdAt: date ? new Date(`${date}T00:00:00`).toISOString() : undefined,
+      receipt: receiptAttachment,
     }
 
     onSave(draft)
@@ -224,6 +236,7 @@ export function ExpenseEditor({
     setAmounts(initializeAmounts(participants))
     setDate('')
     setNote('')
+    setReceiptAttachment(undefined)
   }
 
   const handleToggleParticipant = (participantId: string) => {
@@ -267,6 +280,66 @@ export function ExpenseEditor({
     setAmounts(newAmounts)
   }
 
+  const handleRequestReceiptModal = () => {
+    if (!openAiApiKey) {
+      setShouldOpenReceiptAfterKey(true)
+      setIsApiKeyModalOpen(true)
+      return
+    }
+    setIsReceiptModalOpen(true)
+  }
+
+  const handleManageApiKey = () => {
+    setShouldOpenReceiptAfterKey(false)
+    setIsApiKeyModalOpen(true)
+  }
+
+  const handleApiKeySave = (key: string) => {
+    saveOpenAiApiKey(key)
+    setIsApiKeyModalOpen(false)
+    if (shouldOpenReceiptAfterKey) {
+      setIsReceiptModalOpen(true)
+    }
+    setShouldOpenReceiptAfterKey(false)
+  }
+
+  const handleApiKeyModalClose = () => {
+    setIsApiKeyModalOpen(false)
+    if (shouldOpenReceiptAfterKey) {
+      setIsReceiptModalOpen(true)
+    }
+    setShouldOpenReceiptAfterKey(false)
+  }
+
+  const handleApiKeyRemove = () => {
+    clearOpenAiApiKey()
+    setIsApiKeyModalOpen(false)
+    setShouldOpenReceiptAfterKey(false)
+  }
+
+  const handleReceiptSplitApply = (result: ReceiptSplitResult) => {
+    setReceiptAttachment(result.receipt)
+    setSplitMode('exact')
+
+    const newAmounts: AmountMap = { ...amounts }
+    const newSelection: SelectionMap = { ...selected }
+
+    participants.forEach((participant) => {
+      const allocation = result.allocations[participant.id] ?? 0
+      newAmounts[participant.id] = allocation.toFixed(2)
+      newSelection[participant.id] = allocation > 0
+    })
+
+    setAmounts(newAmounts)
+    setSelected(newSelection)
+    setAmount(result.total.toFixed(2))
+    setOriginalAmountsForTool(newAmounts)
+  }
+
+  const handleRemoveReceipt = () => {
+    setReceiptAttachment(undefined)
+  }
+
   const previewShares = useMemo(() => {
     const participantIds = selectedParticipants.map((participant) => participant.id)
     const split = buildSplitInstruction(splitMode, participantIds, weights, amounts)
@@ -299,6 +372,12 @@ export function ExpenseEditor({
   }, [amounts, selectedParticipants, splitMode])
 
   const exactDifference = splitMode === 'exact' ? Number((parsedAmount - totalExact).toFixed(2)) : 0
+
+  const receiptDateLabel = useMemo(() => {
+    if (!receiptAttachment?.image?.capturedAt) return null
+    const date = new Date(receiptAttachment.image.capturedAt)
+    return Number.isNaN(date.valueOf()) ? null : date.toLocaleString()
+  }, [receiptAttachment])
 
   const isValid =
     description.trim().length > 0 &&
@@ -401,6 +480,60 @@ export function ExpenseEditor({
             ))}
           </div>
         </fieldset>
+
+        <section className="receipt-section">
+          {receiptAttachment ? (
+            <div className="receipt-card attached">
+              <div className="receipt-card__preview">
+                <img src={receiptAttachment.image.dataUrl} alt="Receipt preview" />
+                <span>{receiptAttachment.items.length} items</span>
+              </div>
+              <div className="receipt-card__details">
+                <strong>Receipt imported</strong>
+                <p>
+                  {receiptAttachment.items.length} line items{' '}
+                  {receiptDateLabel ? `captured ${receiptDateLabel}` : 'ready for editing'}.
+                </p>
+                <div className="receipt-card__actions">
+                  <button type="button" className="primary-button" onClick={() => setIsReceiptModalOpen(true)}>
+                    Edit receipt
+                  </button>
+                  <button type="button" className="ghost-button" onClick={handleRemoveReceipt}>
+                    Remove
+                  </button>
+                  <button type="button" className="ghost-button" onClick={handleManageApiKey}>
+                    Manage AI key
+                  </button>
+                </div>
+                <p className="receipt-card__note">
+                  {openAiApiKey
+                    ? 'AI extraction is enabled via your saved OpenAI key.'
+                    : 'Add your OpenAI key to let AI clean up new scans faster.'}
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="receipt-card">
+              <div>
+                <strong>Need to split from a receipt?</strong>
+                <p>Scan a photo, assign items to people, and we&apos;ll fill the custom amounts.</p>
+              </div>
+              <div className="receipt-card__actions">
+                <button type="button" className="primary-button" onClick={handleRequestReceiptModal}>
+                  Scan receipt
+                </button>
+                <button type="button" className="ghost-button" onClick={handleManageApiKey}>
+                  {openAiApiKey ? 'Update AI key' : 'Add AI key'}
+                </button>
+              </div>
+              <p className="receipt-card__note">
+                {openAiApiKey
+                  ? 'We will send the OCR text to OpenAI to detect items.'
+                  : 'Paste your OpenAI API key once to unlock AI-powered item detection.'}
+              </p>
+            </div>
+          )}
+        </section>
 
         <fieldset>
           <legend>Who participates?</legend>
@@ -524,6 +657,22 @@ export function ExpenseEditor({
         currency={currency}
         totalExpense={parsedAmount}
         originalAmounts={originalAmountsForTool}
+      />
+      <ReceiptSplitModal
+        isOpen={isReceiptModalOpen}
+        onClose={() => setIsReceiptModalOpen(false)}
+        onApply={handleReceiptSplitApply}
+        participants={participants}
+        currency={currency}
+        existingReceipt={receiptAttachment}
+        openAiApiKey={openAiApiKey ?? undefined}
+      />
+      <OpenAiKeyModal
+        isOpen={isApiKeyModalOpen}
+        initialKey={openAiApiKey}
+        onSave={handleApiKeySave}
+        onClose={handleApiKeyModalClose}
+        onRemove={openAiApiKey ? handleApiKeyRemove : undefined}
       />
     </section>
   )

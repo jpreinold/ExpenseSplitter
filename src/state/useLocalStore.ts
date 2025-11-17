@@ -8,6 +8,7 @@ import type {
   ParticipantId,
   ParticipantGroup,
   PayerAllocation,
+  ReceiptMetadata,
   SettlementTracking,
   SplitInstruction,
   SplitState,
@@ -15,7 +16,7 @@ import type {
 } from '../types/domain'
 
 const STORAGE_KEY = 'split-expense::state'
-const CURRENT_VERSION = 3
+const CURRENT_VERSION = 4
 
 type EventMetaUpdates = Partial<Pick<Event, 'name' | 'description' | 'location' | 'startDate' | 'endDate' | 'currency' | 'archived'>>
 
@@ -37,6 +38,7 @@ type ExpenseDraft = {
   split: SplitInstruction
   createdAt?: string
   updatedAt?: string
+  receipt?: ReceiptMetadata
 }
 
 type EventDraft = {
@@ -96,6 +98,18 @@ function generateParticipantId(name: string): string {
 
 function nowIso() {
   return new Date().toISOString()
+}
+
+function cloneReceiptMetadata(receipt?: ReceiptMetadata): ReceiptMetadata | undefined {
+  if (!receipt) return undefined
+  return {
+    ...receipt,
+    image: { ...receipt.image },
+    items: (receipt.items ?? []).map((item) => ({
+      ...item,
+      assignedParticipantIds: [...item.assignedParticipantIds],
+    })),
+  }
 }
 
 function normalisePayers(amount: number, payers: PayerAllocation[]): PayerAllocation[] {
@@ -216,6 +230,7 @@ function createExpense(eventCurrency: string, draft: ExpenseDraft): Expense {
     notes: draft.notes,
     paidBy: normalisePayers(amount, draft.paidBy),
     split: normaliseSplit(amount, draft.split),
+    receipt: cloneReceiptMetadata(draft.receipt),
   }
 }
 
@@ -232,6 +247,7 @@ function updateExpenseEntity(eventCurrency: string, current: Expense, updates: P
     updatedAt: nowIso(),
     paidBy: updates.paidBy ? normalisePayers(amount, updates.paidBy) : current.paidBy,
     split: updates.split ? normaliseSplit(amount, updates.split) : current.split,
+    receipt: updates.receipt ? cloneReceiptMetadata(updates.receipt) : current.receipt,
   }
 }
 
@@ -642,6 +658,22 @@ function migrateToLatest(state: Partial<SplitState>): SplitState {
         participantId: payer.participantId,
         amount: Number(payer.amount ?? 0),
       })),
+      receipt:
+        expense.receipt && expense.receipt.image
+          ? {
+              ...expense.receipt,
+              image: {
+                id: expense.receipt.image.id,
+                name: expense.receipt.image.name,
+                dataUrl: expense.receipt.image.dataUrl,
+                capturedAt: expense.receipt.image.capturedAt,
+              },
+              items: (expense.receipt.items ?? []).map((item) => ({
+                ...item,
+                assignedParticipantIds: Array.isArray(item.assignedParticipantIds) ? item.assignedParticipantIds : [],
+              })),
+            }
+          : undefined,
     })),
     settlementTracking: (event.settlementTracking ?? []).map((tracking) => ({
       ...tracking,
@@ -659,6 +691,8 @@ function migrateToLatest(state: Partial<SplitState>): SplitState {
   
   // Migrate from version 2 to 3: add unassignedParticipants array
   const unassignedParticipants = state.version < 3 ? [] : (state.unassignedParticipants ?? [])
+
+  // Version 4 ensures receipt metadata, no additional shape changes needed beyond expense mapping above
 
   return {
     version: CURRENT_VERSION,
