@@ -182,8 +182,13 @@
   cursor: pointer;
 }
 
-.ghost-button:hover {
+.ghost-button:hover:not(:disabled) {
   border-color: rgba(37, 99, 235, 0.4);
+}
+
+.ghost-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .back-button {
@@ -1331,6 +1336,16 @@
 }
 
 .split-grid input {
+  width: 100%;
+}
+
+.split-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.split-actions .ghost-button {
   width: 100%;
 }
 

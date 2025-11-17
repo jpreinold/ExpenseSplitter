@@ -4,6 +4,7 @@ import type { ExpenseDraft, SplitStrategy } from '../state/useLocalStore'
 import { calculateExpenseShares } from '../utils/calculations'
 import type { ParticipantProfile } from './EventDetail'
 import type { Expense } from '../types/domain'
+import { TaxTipToolModal } from './TaxTipToolModal'
 
 type SplitMode = SplitStrategy
 
@@ -115,6 +116,8 @@ export function ExpenseEditor({
   const [weights, setWeights] = useState<WeightMap>(() => initializeWeights(participants))
   const [amounts, setAmounts] = useState<AmountMap>(() => initializeAmounts(participants))
   const [note, setNote] = useState(initialExpense?.notes ?? '')
+  const [isTaxTipToolOpen, setIsTaxTipToolOpen] = useState(false)
+  const [originalAmountsForTool, setOriginalAmountsForTool] = useState<AmountMap>({})
 
   const currencyFormatter = useMemo(
     () =>
@@ -249,6 +252,19 @@ export function ExpenseEditor({
       ...prev,
       [participantId]: value,
     }))
+  }
+
+  const handleOpenTaxTipTool = () => {
+    setOriginalAmountsForTool({ ...amounts })
+    setIsTaxTipToolOpen(true)
+  }
+
+  const handleCloseTaxTipTool = () => {
+    setIsTaxTipToolOpen(false)
+  }
+
+  const handleApplyTaxTipTool = (newAmounts: AmountMap) => {
+    setAmounts(newAmounts)
   }
 
   const previewShares = useMemo(() => {
@@ -445,9 +461,15 @@ export function ExpenseEditor({
                     onChange={(event: ChangeEvent<HTMLInputElement>) =>
                       handleExactAmountChange(participant.id, event.target.value)
                     }
+                    onFocus={(event) => event.target.select()}
                   />
                 </label>
               ))}
+            </div>
+            <div className="split-actions" style={{ paddingLeft: 0 }}>
+              <button type="button" className="back-button" onClick={handleOpenTaxTipTool} style={{ paddingLeft: 0 }}>
+                Need help splitting tax/tip?
+              </button>
             </div>
             <div className="totals-row">
               <span>
@@ -494,6 +516,15 @@ export function ExpenseEditor({
         </div>
       </form>
 
+      <TaxTipToolModal
+        isOpen={isTaxTipToolOpen}
+        onClose={handleCloseTaxTipTool}
+        onApply={handleApplyTaxTipTool}
+        participants={selectedParticipants}
+        currency={currency}
+        totalExpense={parsedAmount}
+        originalAmounts={originalAmountsForTool}
+      />
     </section>
   )
 }
