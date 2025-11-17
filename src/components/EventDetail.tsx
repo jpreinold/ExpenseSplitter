@@ -4,6 +4,7 @@ import type { ConfirmationOptions } from './ConfirmDialog'
 import type { Participant, ParticipantGroup, ParticipantId } from '../types/domain'
 import { EventSubNav } from './EventSubNav'
 import { EventHeader } from './EventHeader'
+import { useBodyScrollLock } from '../hooks/useBodyScrollLock'
 
 type ParticipantProfile = {
   id: string
@@ -87,6 +88,8 @@ export function EventDetail({
   const [showAmbiguousModal, setShowAmbiguousModal] = useState(false)
   const [ambiguousMatches, setAmbiguousMatches] = useState<Participant[]>([])
   const inputRef = useRef<HTMLInputElement>(null)
+
+  useBodyScrollLock(showAmbiguousModal)
   const suggestionsRef = useRef<HTMLDivElement>(null)
   const expensesSectionRef = useRef<HTMLDivElement>(null)
 

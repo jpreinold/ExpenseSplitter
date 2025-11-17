@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { FormEvent, MouseEvent as ReactMouseEvent } from 'react'
 import type { SettlementPayment } from '../types/domain'
+import { useBodyScrollLock } from '../hooks/useBodyScrollLock'
 
 type SettlementDetailModalProps = {
   isOpen: boolean
@@ -30,6 +31,8 @@ export function SettlementDetailModal({
 }: SettlementDetailModalProps) {
   const [paymentAmount, setPaymentAmount] = useState('')
   const paymentInputRef = useRef<HTMLInputElement>(null)
+
+  useBodyScrollLock(isOpen)
 
   const formatter = new Intl.NumberFormat(undefined, {
     style: 'currency',

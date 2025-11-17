@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { useBodyScrollLock } from '../hooks/useBodyScrollLock'
 
 type ConfirmTone = 'default' | 'danger'
 
@@ -27,6 +28,8 @@ export function ConfirmDialog({
   onConfirm,
 }: ConfirmDialogProps) {
   const confirmButtonRef = useRef<HTMLButtonElement>(null)
+
+  useBodyScrollLock(isOpen)
 
   useEffect(() => {
     if (!isOpen) return

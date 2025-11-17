@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { MouseEvent as ReactMouseEvent } from 'react'
 import type { ParticipantProfile } from './EventDetail'
+import { useBodyScrollLock } from '../hooks/useBodyScrollLock'
 
 type AmountMap = Record<string, string>
 
@@ -26,6 +27,8 @@ export function TaxTipToolModal({
   const [amounts, setAmounts] = useState<AmountMap>(originalAmounts)
   const [baseAmounts, setBaseAmounts] = useState<AmountMap>(originalAmounts)
   const [selectedPreview, setSelectedPreview] = useState<'none' | 'even' | 'proportional'>('none')
+
+  useBodyScrollLock(isOpen)
 
   const currencyFormatter = useMemo(
     () =>

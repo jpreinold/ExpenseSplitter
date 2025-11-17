@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { FormEvent, MouseEvent as ReactMouseEvent } from 'react'
 import type { EventDraft } from '../state/useLocalStore'
+import { useBodyScrollLock } from '../hooks/useBodyScrollLock'
 
 type EventCreateModalProps = {
   isOpen: boolean
@@ -23,6 +24,8 @@ export function EventCreateModal({ isOpen, onClose, onCreate }: EventCreateModal
   const [endDate, setEndDate] = useState('')
   const [currency, setCurrency] = useState('USD')
   const nameInputRef = useRef<HTMLInputElement>(null)
+
+  useBodyScrollLock(isOpen)
 
   useEffect(() => {
     if (!isOpen) return

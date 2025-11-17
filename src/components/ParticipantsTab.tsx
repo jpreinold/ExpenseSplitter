@@ -3,6 +3,7 @@ import type { Event, Participant, ParticipantGroup, ParticipantId } from '../typ
 import { getAllParticipants } from '../utils/participants'
 import { GroupCreateModal } from './GroupCreateModal'
 import { GroupEditModal } from './GroupEditModal'
+import { useBodyScrollLock } from '../hooks/useBodyScrollLock'
 
 type ParticipantsTabProps = {
   events: Event[]
@@ -55,6 +56,8 @@ export function ParticipantsTab({
   const [showCreateGroupModal, setShowCreateGroupModal] = useState(false)
   const [pendingGroupName, setPendingGroupName] = useState('')
   const [participantQuery, setParticipantQuery] = useState('')
+
+  useBodyScrollLock(showAddToEventModal)
   const [targetEventId, setTargetEventId] = useState<string>('')
   const [editingGroupId, setEditingGroupId] = useState<string | null>(null)
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null)

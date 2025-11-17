@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { Participant, ParticipantGroup, ParticipantId } from '../types/domain'
+import { useBodyScrollLock } from '../hooks/useBodyScrollLock'
 
 type GroupEditModalProps = {
   isOpen: boolean
@@ -12,6 +13,8 @@ type GroupEditModalProps = {
 export function GroupEditModal({ isOpen, group, participants, onClose, onSave }: GroupEditModalProps) {
   const [name, setName] = useState('')
   const [selectedIds, setSelectedIds] = useState<Set<ParticipantId>>(new Set())
+
+  useBodyScrollLock(isOpen)
 
   useEffect(() => {
     if (isOpen && group) {

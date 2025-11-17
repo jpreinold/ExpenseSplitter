@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { FormEvent, MouseEvent as ReactMouseEvent } from 'react'
+import { useBodyScrollLock } from '../hooks/useBodyScrollLock'
 
 type EventNameEditModalProps = {
   isOpen: boolean
@@ -11,6 +12,8 @@ type EventNameEditModalProps = {
 export function EventNameEditModal({ isOpen, onClose, onSave, currentName }: EventNameEditModalProps) {
   const [name, setName] = useState('')
   const nameInputRef = useRef<HTMLInputElement>(null)
+
+  useBodyScrollLock(isOpen)
 
   useEffect(() => {
     if (!isOpen) return

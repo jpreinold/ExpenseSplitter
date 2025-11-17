@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { FormEvent, MouseEvent as ReactMouseEvent } from 'react'
 import type { Participant } from '../types/domain'
+import { useBodyScrollLock } from '../hooks/useBodyScrollLock'
 
 type GroupCreateModalProps = {
   isOpen: boolean
@@ -13,6 +14,8 @@ type GroupCreateModalProps = {
 export function GroupCreateModal({ isOpen, onClose, onCreate, initialName, selectedParticipants = [] }: GroupCreateModalProps) {
   const [name, setName] = useState('')
   const nameInputRef = useRef<HTMLInputElement>(null)
+
+  useBodyScrollLock(isOpen)
 
   useEffect(() => {
     if (!isOpen) return

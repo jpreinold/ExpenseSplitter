@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import type { MouseEvent as ReactMouseEvent } from 'react'
 import type { Event, Participant, ParticipantGroup, ParticipantId } from '../types/domain'
+import { useBodyScrollLock } from '../hooks/useBodyScrollLock'
 
 type ParticipantImportModalProps = {
   isOpen: boolean
@@ -29,6 +30,8 @@ export function ParticipantImportModal({
   const [showCreateGroupModal, setShowCreateGroupModal] = useState(false)
   const [pendingGroupName, setPendingGroupName] = useState('')
   const [pendingGroupParticipants, setPendingGroupParticipants] = useState<ParticipantId[]>([])
+
+  useBodyScrollLock(isOpen)
 
   const currentEvent = useMemo(() => events.find((e) => e.id === currentEventId), [events, currentEventId])
   const currentEventParticipantIds = useMemo(() => new Set(currentEvent?.participants.map((p) => p.id) ?? []), [currentEvent])
