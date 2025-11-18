@@ -109,6 +109,16 @@ function cloneReceiptMetadata(receipt?: ReceiptMetadata): ReceiptMetadata | unde
       ...item,
       assignedParticipantIds: [...item.assignedParticipantIds],
     })),
+    distribution: receipt.distribution
+      ? {
+          mode: receipt.distribution.mode,
+          total: receipt.distribution.total,
+          shares: receipt.distribution.shares.map((share) => ({
+            participantId: share.participantId,
+            amount: share.amount,
+          })),
+        }
+      : undefined,
   }
 }
 
@@ -672,6 +682,16 @@ function migrateToLatest(state: Partial<SplitState>): SplitState {
                 ...item,
                 assignedParticipantIds: Array.isArray(item.assignedParticipantIds) ? item.assignedParticipantIds : [],
               })),
+              distribution: expense.receipt.distribution
+                ? {
+                    mode: expense.receipt.distribution.mode,
+                    total: expense.receipt.distribution.total,
+                    shares: (expense.receipt.distribution.shares ?? []).map((share) => ({
+                      participantId: share.participantId,
+                      amount: share.amount,
+                    })),
+                  }
+                : undefined,
             }
           : undefined,
     })),

@@ -84,11 +84,7 @@ type DraftBuildResult = {
   summary: ReceiptSummaryState
 }
 
-function buildDraftsFromParsedData(
-  participants: ParticipantProfile[],
-  parsed: ParsedReceiptData,
-  options?: { defaultConfidence?: number },
-): DraftBuildResult {
+function buildDraftsFromParsedData(parsed: ParsedReceiptData, options?: { defaultConfidence?: number }): DraftBuildResult {
   const defaultConfidence = options?.defaultConfidence ?? 0.6
   const drafts: ReceiptLineDraft[] = parsed.items.map((item) => ({
     id: item.id,
@@ -99,27 +95,6 @@ function buildDraftsFromParsedData(
     sourceText: item.sourceLine,
     origin: 'ocr',
   }))
-
-  if (parsed.tax && parsed.tax > 0) {
-    drafts.push({
-      id: createLocalId('receipt_tax'),
-      description: 'Tax',
-      amount: parsed.tax.toFixed(2),
-      assignedParticipantIds: participants.map((participant) => participant.id),
-      confidence: 0.4,
-      origin: 'summary',
-    })
-  }
-  if (parsed.tip && parsed.tip > 0) {
-    drafts.push({
-      id: createLocalId('receipt_tip'),
-      description: 'Tip',
-      amount: parsed.tip.toFixed(2),
-      assignedParticipantIds: participants.map((participant) => participant.id),
-      confidence: 0.4,
-      origin: 'summary',
-    })
-  }
 
   return {
     drafts,
@@ -132,9 +107,9 @@ function buildDraftsFromParsedData(
   }
 }
 
-function buildDraftsFromRawText(participants: ParticipantProfile[], rawText: string) {
+function buildDraftsFromRawText(rawText: string) {
   const parsed = parseReceiptText(rawText)
-  return buildDraftsFromParsedData(participants, parsed)
+  return buildDraftsFromParsedData(parsed)
 }
 
 function fileToDataUrl(file: File) {
@@ -181,6 +156,17 @@ export function ReceiptSplitModal({
         ? 'basic'
         : 'manual',
   )
+  const [autoDistributionMode, setAutoDistributionMode] = useState<'none' | 'even' | 'proportional'>(
+    existingReceipt?.distribution?.mode ?? 'none',
+  )
+  const [autoDistribution, setAutoDistribution] = useState<Record<ParticipantId, number>>(() => {
+    const distribution = existingReceipt?.distribution
+    if (!distribution) return {}
+    return distribution.shares.reduce<Record<ParticipantId, number>>((acc, share) => {
+      acc[share.participantId] = share.amount
+      return acc
+    }, {})
+  })
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   const { status: ocrStatus, progress, error: ocrError, recognise, reset } = useReceiptOcr()
@@ -212,6 +198,20 @@ export function ReceiptSplitModal({
           : 'manual',
     )
     setAiStatus('idle')
+    if (existingReceipt?.distribution) {
+      setAutoDistributionMode(existingReceipt.distribution.mode)
+      const nextDistribution = existingReceipt.distribution.shares.reduce<Record<ParticipantId, number>>(
+        (acc, share) => {
+          acc[share.participantId] = share.amount
+          return acc
+        },
+        {},
+      )
+      setAutoDistribution(nextDistribution)
+    } else {
+      setAutoDistributionMode('none')
+      setAutoDistribution({})
+    }
     reset()
   }, [existingReceipt, isOpen, reset])
 
@@ -235,10 +235,27 @@ export function ReceiptSplitModal({
 
   const allocation = useMemo(() => calculateReceiptAllocations(preparedItems), [preparedItems])
 
+  const combinedAllocation = useMemo(() => {
+    const combined: Record<ParticipantId, number> = { ...allocation.perParticipant }
+    Object.entries(autoDistribution).forEach(([participantId, amount]) => {
+      combined[participantId as ParticipantId] = Number(
+        ((combined[participantId as ParticipantId] ?? 0) + amount).toFixed(2),
+      )
+    })
+    return combined
+  }, [allocation.perParticipant, autoDistribution])
+
   const itemsTotal = useMemo(
     () => preparedItems.reduce((sum, item) => sum + item.amount, 0),
     [preparedItems],
   )
+
+  const remainingDifference = useMemo(() => {
+    const totalValue = Number.parseFloat(summary.total)
+    if (!Number.isFinite(totalValue)) return 0
+    const distributed = Object.values(autoDistribution).reduce((sum, value) => sum + value, 0)
+    return Number((totalValue - itemsTotal - distributed).toFixed(2))
+  }, [itemsTotal, summary.total, autoDistribution])
 
   const currencyFormatter = useMemo(
     () =>
@@ -252,7 +269,7 @@ export function ReceiptSplitModal({
   const hasUnassigned = allocation.unassignedItemIds.length > 0
   const canApply = imagePreview && preparedItems.length > 0 && !hasUnassigned
   const allocationParticipants = participants.filter(
-    (participant) => allocation.perParticipant[participant.id] !== undefined,
+    (participant) => combinedAllocation[participant.id] !== undefined,
   )
 
   const applyDraftResult = (result: DraftBuildResult, source: 'basic' | 'ai') => {
@@ -260,19 +277,21 @@ export function ReceiptSplitModal({
     const nextDrafts = detectedCount > 0 ? result.drafts : [createManualLine()]
     setLines(nextDrafts)
     setSummary(result.summary)
+    setAutoDistributionMode('none')
+    setAutoDistribution({})
     if (source === 'basic') {
       setParserSource('basic')
       setParseFeedback(
         detectedCount === 0
           ? 'No line items detected automatically — add them manually below.'
-          : `Detected ${detectedCount} line item${detectedCount === 1 ? '' : 's'}. Review and assign people.`,
+          : `${detectedCount} line item${detectedCount === 1 ? '' : 's'} were extracted. Review and assign people.`,
       )
     } else {
       setParserSource('ai')
       setParseFeedback(
         detectedCount === 0
-          ? 'OpenAI could not confidently read this receipt. Edit the items manually below.'
-          : `OpenAI extracted ${detectedCount} line item${detectedCount === 1 ? '' : 's'}. Review and assign people.`,
+          ? 'No line items were extracted. Edit the items manually below.'
+          : `${detectedCount} line item${detectedCount === 1 ? '' : 's'} were extracted. Review and assign people.`,
       )
     }
   }
@@ -299,14 +318,14 @@ export function ReceiptSplitModal({
       const text = await recognise(file)
       setRawText(text)
 
-      const basicResult = buildDraftsFromRawText(participants, text)
+        const basicResult = buildDraftsFromRawText(text)
       applyDraftResult(basicResult, 'basic')
 
       if (openAiApiKey) {
         setAiStatus('working')
         try {
           const aiParsed = await extractReceiptItemsWithAI(text, openAiApiKey)
-          const aiResult = buildDraftsFromParsedData(participants, aiParsed, { defaultConfidence: 0.85 })
+          const aiResult = buildDraftsFromParsedData(aiParsed, { defaultConfidence: 0.85 })
           applyDraftResult(aiResult, 'ai')
           setAiStatus('success')
         } catch (aiError) {
@@ -343,6 +362,8 @@ export function ReceiptSplitModal({
     setParseFeedback(null)
     setAiStatus('idle')
     setParserSource('manual')
+    setAutoDistributionMode('none')
+    setAutoDistribution({})
     reset()
     fileInputRef.current?.focus()
   }
@@ -409,6 +430,8 @@ export function ReceiptSplitModal({
 
   const handleSummaryChange = (field: keyof ReceiptSummaryState, value: string) => {
     setSummary((prev) => ({ ...prev, [field]: value }))
+    setAutoDistributionMode('none')
+    setAutoDistribution({})
   }
 
   const preparedSummary = {
@@ -418,6 +441,69 @@ export function ReceiptSplitModal({
     total: Number.parseFloat(summary.total) || undefined,
   }
 
+  const handleApplyDistribution = (mode: 'even' | 'proportional') => {
+    if (remainingDifference <= 0.01) {
+      setAutoDistributionMode('none')
+      setAutoDistribution({})
+      return
+    }
+    const targets = allocationParticipants.length > 0 ? allocationParticipants : participants
+    if (targets.length === 0) {
+      setAutoDistributionMode('none')
+      setAutoDistribution({})
+      return
+    }
+    const cents = Math.round(remainingDifference * 100)
+    let shares: Record<ParticipantId, number> = {}
+    if (mode === 'even') {
+      const base = Math.floor(cents / targets.length)
+      let remainder = cents - base * targets.length
+      shares = targets.reduce<Record<ParticipantId, number>>((acc, participant) => {
+        const extra = remainder > 0 ? 1 : 0
+        if (remainder > 0) remainder -= 1
+        acc[participant.id] = Number(((base + extra) / 100).toFixed(2))
+        return acc
+      }, {})
+    } else {
+      const totalBase = targets.reduce((sum, participant) => sum + (allocation.perParticipant[participant.id] ?? 0), 0)
+      if (totalBase <= 0) {
+        handleApplyDistribution('even')
+        return
+      }
+      const provisional = targets.map((participant) => {
+        const baseShare = allocation.perParticipant[participant.id] ?? 0
+        const exact = (baseShare / totalBase) * cents
+        return {
+          participantId: participant.id,
+          cents: Math.floor(exact),
+          fraction: exact - Math.floor(exact),
+        }
+      })
+      let allocated = provisional.reduce((sum, entry) => sum + entry.cents, 0)
+      let remainder = cents - allocated
+      provisional
+        .slice()
+        .sort((a, b) => b.fraction - a.fraction)
+        .forEach((entry) => {
+          if (remainder > 0) {
+            entry.cents += 1
+            remainder -= 1
+          }
+        })
+      shares = provisional.reduce<Record<ParticipantId, number>>((acc, entry) => {
+        acc[entry.participantId] = Number((entry.cents / 100).toFixed(2))
+        return acc
+      }, {})
+    }
+    setAutoDistributionMode(mode)
+    setAutoDistribution(shares)
+  }
+
+  const clearDistribution = () => {
+    setAutoDistributionMode('none')
+    setAutoDistribution({})
+  }
+
   const handleApply = () => {
     if (!canApply) return
     const receiptItems: ReceiptLineItem[] = preparedItems.map((item) => ({
@@ -425,6 +511,20 @@ export function ReceiptSplitModal({
       amount: Number(item.amount.toFixed(2)),
       assignedParticipantIds: item.assignedParticipantIds,
     }))
+
+    const distributionPayload =
+      autoDistributionMode !== 'none' && Object.keys(autoDistribution).length > 0
+        ? {
+            mode: autoDistributionMode,
+            total: Number(
+              Object.values(autoDistribution).reduce((sum, value) => sum + value, 0).toFixed(2),
+            ),
+            shares: Object.entries(autoDistribution).map(([participantId, amount]) => ({
+              participantId,
+              amount,
+            })),
+          }
+        : undefined
 
     const receipt: ReceiptMetadata = {
       image: {
@@ -441,12 +541,17 @@ export function ReceiptSplitModal({
       currency,
       rawText,
       ocrProvider: parserSource === 'ai' ? 'openai' : rawText ? 'tesseract-js' : 'manual',
+      distribution: distributionPayload,
     }
+
+    const distributedTotal = Number(
+      (allocation.total + Object.values(autoDistribution).reduce((sum, value) => sum + value, 0)).toFixed(2),
+    )
 
     onApply({
       receipt,
-      allocations: allocation.perParticipant,
-      total: allocation.total,
+      allocations: combinedAllocation,
+      total: distributedTotal,
     })
     onClose()
   }
@@ -531,12 +636,6 @@ export function ReceiptSplitModal({
                 Totals are optional and help you verify we captured the right numbers.
               </p>
             </div>
-            {rawText && (
-              <details className="ocr-text">
-                <summary>Show OCR text</summary>
-                <pre>{rawText.slice(0, 4000)}</pre>
-              </details>
-            )}
           </section>
           <section className="receipt-modal__items">
             <div className="items-header">
@@ -624,6 +723,31 @@ export function ReceiptSplitModal({
                 )
               })}
             </div>
+            {remainingDifference > 0.01 && (
+              <div className="receipt-distribution">
+                <p>
+                  {currencyFormatter.format(remainingDifference)} remains (likely tax/tip). Apply it across participants:
+                </p>
+                <div className="distribution-actions">
+                  <button type="button" className="ghost-button" onClick={() => handleApplyDistribution('even')}>
+                    Distribute evenly
+                  </button>
+                  <button type="button" className="ghost-button" onClick={() => handleApplyDistribution('proportional')}>
+                    Distribute proportionally
+                  </button>
+                  {autoDistributionMode !== 'none' && (
+                    <button type="button" className="ghost-button" onClick={clearDistribution}>
+                      Clear distribution
+                    </button>
+                  )}
+                </div>
+                {autoDistributionMode !== 'none' && (
+                  <p className="helper-text">
+                    Applying {autoDistributionMode} distribution to cover the remaining amount.
+                  </p>
+                )}
+              </div>
+            )}
             <div className="receipt-preview-card">
               <div>
                 <strong>Items total</strong>
@@ -634,7 +758,7 @@ export function ReceiptSplitModal({
                 <ul>
                   {allocationParticipants.map((participant) => (
                     <li key={participant.id}>
-                      {participant.name}: {currencyFormatter.format(allocation.perParticipant[participant.id] ?? 0)}
+                      {participant.name}: {currencyFormatter.format(combinedAllocation[participant.id] ?? 0)}
                     </li>
                   ))}
                 </ul>

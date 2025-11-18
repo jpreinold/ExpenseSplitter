@@ -505,11 +505,6 @@ export function ExpenseEditor({
                     Manage AI key
                   </button>
                 </div>
-                <p className="receipt-card__note">
-                  {openAiApiKey
-                    ? 'AI extraction is enabled via your saved OpenAI key.'
-                    : 'Add your OpenAI key to let AI clean up new scans faster.'}
-                </p>
               </div>
             </div>
           ) : (
@@ -526,11 +521,6 @@ export function ExpenseEditor({
                   {openAiApiKey ? 'Update AI key' : 'Add AI key'}
                 </button>
               </div>
-              <p className="receipt-card__note">
-                {openAiApiKey
-                  ? 'We will send the OCR text to OpenAI to detect items.'
-                  : 'Paste your OpenAI API key once to unlock AI-powered item detection.'}
-              </p>
             </div>
           )}
         </section>

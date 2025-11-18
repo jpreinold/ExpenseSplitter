@@ -66,6 +66,14 @@ export interface ReceiptMetadata {
   currency?: string
   rawText?: string
   ocrProvider?: string
+  distribution?: {
+    mode: 'even' | 'proportional'
+    total: number
+    shares: Array<{
+      participantId: ParticipantId
+      amount: number
+    }>
+  }
 }
 
 export interface Expense {
