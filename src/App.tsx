@@ -63,6 +63,9 @@ function App() {
     // Works in both regular browser and PWA standalone mode (especially useful for iOS PWA where native pull-to-refresh is disabled)
     const ptr = PullToRefresh.init({
       mainElement: 'body',
+      shouldPullToRefresh() {
+        return !document.body.classList.contains('modal-open') && window.scrollY <= 0
+      },
       onRefresh() {
         window.location.reload()
       },

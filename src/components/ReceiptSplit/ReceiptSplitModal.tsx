@@ -485,14 +485,8 @@ export function ReceiptSplitModal({
                 </figcaption>
               </figure>
             ) : (
-              <label className="upload-card">
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  capture="environment"
-                  onChange={handleFileChange}
-                />
+                <label className="upload-card">
+                  <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileChange} />
                 <strong>Take a photo or upload</strong>
                 <span>Use your camera for best results. We keep the image locally.</span>
               </label>

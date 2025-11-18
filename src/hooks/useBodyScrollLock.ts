@@ -19,6 +19,7 @@ export function useBodyScrollLock(isOpen: boolean) {
     body.style.top = `-${scrollY}px`
     body.style.width = '100%'
     body.style.overflow = 'hidden'
+    body.classList.add('modal-open')
 
     // Also prevent html scroll (for better compatibility)
     html.style.overflow = 'hidden'
@@ -29,6 +30,7 @@ export function useBodyScrollLock(isOpen: boolean) {
       body.style.top = ''
       body.style.width = ''
       body.style.overflow = ''
+      body.classList.remove('modal-open')
       html.style.overflow = ''
 
       // Restore scroll position
