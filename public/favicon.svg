@@ -1,11 +1,20 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
   <defs>
-    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#2563eb" />
-      <stop offset="100%" stop-color="#38bdf8" />
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2563eb"/>
+      <stop offset="100%" stop-color="#1d4ed8"/>
     </linearGradient>
   </defs>
-  <rect width="32" height="32" rx="6" fill="url(#grad)" />
-  <path d="M9 9h6v5H9zM17 18h6v5h-6z" fill="#0f172a" />
+  
+  <!-- Background -->
+  <rect width="32" height="32" rx="6" fill="url(#bg)"/>
+  
+  <!-- Receipt shape -->
+  <path d="M8 4 h16 a2 2 0 0 1 2 2 v20 l-2-1.5-2 1.5-2-1.5-2 1.5-2-1.5-2 1.5-2-1.5-2 1.5 V6 a2 2 0 0 1 2-2z" fill="#fff"/>
+  
+  <!-- Dollar sign -->
+  <text x="16" y="15" text-anchor="middle" font-family="system-ui, sans-serif" font-size="10" font-weight="bold" fill="#2563eb">$</text>
+  
+  <!-- Lines -->
+  <path d="M10 19 h12 M10 22 h10" stroke="#cbd5e1" stroke-width="1.5" stroke-linecap="round"/>
 </svg>
-
