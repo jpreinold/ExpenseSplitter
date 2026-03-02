@@ -108,6 +108,45 @@ function distributeExact(totalCents: number, split: Extract<SplitInstruction, { 
   return allocations
 }
 
+function distributeReceipt(totalCents: number, split: Extract<SplitInstruction, { type: 'receipt' }>): ShareCents[] {
+  const perParticipantCents: Record<ParticipantId, number> = {}
+
+  split.items.forEach((item) => {
+    const itemCents = toCents(item.amount)
+    const participants = item.assignedParticipantIds ?? []
+    if (participants.length === 0) return
+
+    const base = Math.floor(itemCents / participants.length)
+    let remainder = itemCents - base * participants.length
+
+    participants.forEach((participantId) => {
+      const cents = base + (remainder > 0 ? 1 : 0)
+      if (remainder > 0) remainder -= 1
+      perParticipantCents[participantId] = (perParticipantCents[participantId] ?? 0) + cents
+    })
+  })
+
+  if (split.distribution) {
+    split.distribution.shares.forEach((share) => {
+      perParticipantCents[share.participantId] =
+        (perParticipantCents[share.participantId] ?? 0) + toCents(share.amount)
+    })
+  }
+
+  const shares = Object.entries(perParticipantCents).map(([participantId, cents]) => ({
+    participantId,
+    cents,
+  }))
+
+  const allocated = shares.reduce((sum, entry) => sum + entry.cents, 0)
+  const difference = totalCents - allocated
+  if (difference !== 0 && shares.length > 0) {
+    shares[0].cents += difference
+  }
+
+  return shares
+}
+
 export function calculateExpenseShares(expense: Expense): ExpenseShare[] {
   const totalCents = toCents(expense.amount)
 
@@ -116,6 +155,8 @@ export function calculateExpenseShares(expense: Expense): ExpenseShare[] {
     shares = distributeEven(totalCents, expense.split.participantIds)
   } else if (expense.split.type === 'shares') {
     shares = distributeShares(totalCents, expense.split)
+  } else if (expense.split.type === 'receipt') {
+    shares = distributeReceipt(totalCents, expense.split)
   } else {
     shares = distributeExact(totalCents, expense.split)
   }
@@ -250,6 +291,17 @@ export function describeSplit(expense: Expense, participants: Map<ParticipantId,
         })
         .join(', ')
       return `Exact amounts · ${expense.split.allocations.length} participants (${details})`
+    }
+    case 'receipt': {
+      const participantIds = new Set<ParticipantId>()
+      expense.split.items.forEach((item) => {
+        item.assignedParticipantIds.forEach((id) => participantIds.add(id))
+      })
+      const names = Array.from(participantIds)
+        .map((id) => participants.get(id)?.name ?? 'Unknown')
+        .filter(Boolean)
+        .join(', ')
+      return `Receipt split · ${expense.split.items.length} items (${names})`
     }
     default:
       return 'Custom split'

@@ -104,7 +104,7 @@ function cloneReceiptMetadata(receipt?: ReceiptMetadata): ReceiptMetadata | unde
   if (!receipt) return undefined
   return {
     ...receipt,
-    image: { ...receipt.image },
+    ...(receipt.image && { image: { ...receipt.image } }),
     items: (receipt.items ?? []).map((item) => ({
       ...item,
       assignedParticipantIds: [...item.assignedParticipantIds],
@@ -181,6 +181,28 @@ function normaliseSplit(amount: number, split: SplitInstruction): SplitInstructi
     }
   }
 
+  if (split.type === 'receipt') {
+    return {
+      type: 'receipt',
+      items: split.items.map((item) => ({
+        id: item.id,
+        description: item.description,
+        amount: Number(item.amount.toFixed(2)),
+        assignedParticipantIds: [...item.assignedParticipantIds],
+      })),
+      distribution: split.distribution
+        ? {
+            mode: split.distribution.mode,
+            total: Number(split.distribution.total.toFixed(2)),
+            shares: split.distribution.shares.map((share) => ({
+              participantId: share.participantId,
+              amount: Number(share.amount.toFixed(2)),
+            })),
+          }
+        : undefined,
+    }
+  }
+
   return split
 }
 
@@ -195,6 +217,21 @@ function removeParticipantFromSplit(split: SplitInstruction, participantId: Part
     return {
       type: 'shares',
       shares: split.shares.filter((share) => share.participantId !== participantId),
+    }
+  }
+  if (split.type === 'receipt') {
+    return {
+      type: 'receipt',
+      items: split.items.map((item) => ({
+        ...item,
+        assignedParticipantIds: item.assignedParticipantIds.filter((id) => id !== participantId),
+      })),
+      distribution: split.distribution
+        ? {
+            ...split.distribution,
+            shares: split.distribution.shares.filter((share) => share.participantId !== participantId),
+          }
+        : undefined,
     }
   }
   return {
@@ -565,6 +602,24 @@ function reducer(state: SplitState, action: Action): SplitState {
                 allocation.participantId === action.participantId ? { ...allocation, participantId: action.newId } : allocation,
               ),
             }
+          } else if (expense.split.type === 'receipt') {
+            updatedSplit = {
+              ...expense.split,
+              items: expense.split.items.map((item) => ({
+                ...item,
+                assignedParticipantIds: item.assignedParticipantIds.map((id) =>
+                  id === action.participantId ? action.newId : id,
+                ),
+              })),
+              distribution: expense.split.distribution
+                ? {
+                    ...expense.split.distribution,
+                    shares: expense.split.distribution.shares.map((share) =>
+                      share.participantId === action.participantId ? { ...share, participantId: action.newId } : share,
+                    ),
+                  }
+                : undefined,
+            }
           }
 
           return {
@@ -669,15 +724,17 @@ function migrateToLatest(state: Partial<SplitState>): SplitState {
         amount: Number(payer.amount ?? 0),
       })),
       receipt:
-        expense.receipt && expense.receipt.image
+        expense.receipt
           ? {
               ...expense.receipt,
-              image: {
-                id: expense.receipt.image.id,
-                name: expense.receipt.image.name,
-                dataUrl: expense.receipt.image.dataUrl,
-                capturedAt: expense.receipt.image.capturedAt,
-              },
+              ...(expense.receipt.image && {
+                image: {
+                  id: expense.receipt.image.id,
+                  name: expense.receipt.image.name,
+                  dataUrl: expense.receipt.image.dataUrl,
+                  capturedAt: expense.receipt.image.capturedAt,
+                },
+              }),
               items: (expense.receipt.items ?? []).map((item) => ({
                 ...item,
                 assignedParticipantIds: Array.isArray(item.assignedParticipantIds) ? item.assignedParticipantIds : [],

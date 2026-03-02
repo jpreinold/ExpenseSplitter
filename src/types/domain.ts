@@ -37,7 +37,20 @@ export interface ExactSplit {
   }>
 }
 
-export type SplitInstruction = EvenSplit | ShareSplit | ExactSplit
+export interface ReceiptSplit {
+  type: 'receipt'
+  items: ReceiptLineItem[]
+  distribution?: {
+    mode: 'even' | 'proportional'
+    total: number
+    shares: Array<{
+      participantId: ParticipantId
+      amount: number
+    }>
+  }
+}
+
+export type SplitInstruction = EvenSplit | ShareSplit | ExactSplit | ReceiptSplit
 export type SplitStrategy = SplitInstruction['type']
 
 export interface ReceiptImageAttachment {
@@ -57,7 +70,7 @@ export interface ReceiptLineItem {
 }
 
 export interface ReceiptMetadata {
-  image: ReceiptImageAttachment
+  image?: ReceiptImageAttachment
   items: ReceiptLineItem[]
   subtotal?: number
   tax?: number
