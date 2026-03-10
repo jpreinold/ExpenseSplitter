@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import type { SettlementGroup } from '../types/domain'
 import { EventSubNav } from './EventSubNav'
 import { EventHeader } from './EventHeader'
@@ -39,6 +40,7 @@ type SummaryProps = {
   onEditGroupClick?: (group: SettlementGroup) => void
   onDeleteGroupClick?: (groupId: string) => void
   onBalanceClick?: (participantId: string) => void
+  onCopyBreakdown?: () => Promise<boolean> | boolean
 }
 
 export function Summary({
@@ -58,7 +60,20 @@ export function Summary({
   onEditGroupClick,
   onDeleteGroupClick,
   onBalanceClick,
+  onCopyBreakdown,
 }: SummaryProps) {
+  const [copyStatus, setCopyStatus] = useState<'idle' | 'success' | 'error'>('idle')
+
+  useEffect(() => {
+    if (copyStatus === 'idle') return
+    const timeoutId = window.setTimeout(() => {
+      setCopyStatus('idle')
+    }, 2500)
+    return () => {
+      window.clearTimeout(timeoutId)
+    }
+  }, [copyStatus])
+
   const formatter = new Intl.NumberFormat(undefined, {
     style: 'currency',
     currency,
@@ -66,6 +81,16 @@ export function Summary({
   const totalFormatted = formatter.format(totals.expenses)
   const allSettlementsComplete =
     settlements.length > 0 && settlements.every((settlement) => settlement.isComplete)
+
+  const handleCopyBreakdown = async () => {
+    if (!onCopyBreakdown) return
+    try {
+      const success = await onCopyBreakdown()
+      setCopyStatus(success ? 'success' : 'error')
+    } catch {
+      setCopyStatus('error')
+    }
+  }
 
   return (
     <section className="surface view-section">
@@ -200,6 +225,22 @@ export function Summary({
         ) : null}
         <div className="panel-heading">
           <h3 id="settlements-heading">Settlements</h3>
+          {onCopyBreakdown ? (
+            <div className="panel-heading__actions">
+              <button
+                type="button"
+                className="ghost-button ghost-button--small"
+                onClick={() => {
+                  void handleCopyBreakdown()
+                }}
+              >
+                Copy breakdown
+              </button>
+              <span className={`copy-status ${copyStatus !== 'idle' ? 'copy-status--visible' : ''}`} aria-live="polite">
+                {copyStatus === 'success' ? 'Breakdown copied' : copyStatus === 'error' ? 'Copy failed' : ''}
+              </span>
+            </div>
+          ) : null}
         </div>
 
         {settlements.length === 0 ? (

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import './App.css'
 import { EventDetail } from './components/EventDetail'
 import { EventCreateModal } from './components/EventCreateModal'
@@ -15,6 +15,7 @@ import { PrimaryNav } from './components/PrimaryNav'
 import { useLocalStore } from './state/useLocalStore'
 import type { EventDraft, ExpenseDraft, GroupDraft } from './state/useLocalStore'
 import {
+  calculateExpenseShares,
   calculateEventBalances,
   describeSplit,
   getParticipantExpenseBreakdown,
@@ -28,6 +29,34 @@ import type { ConfirmationOptions } from './components/ConfirmDialog'
 import PullToRefresh from 'pulltorefreshjs'
 
 type ViewMode = 'events' | 'participants' | 'eventOverview' | 'eventSummary' | 'editor'
+
+async function copyTextToClipboard(text: string): Promise<boolean> {
+  if (navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(text)
+      return true
+    } catch {
+      // Fall back to legacy copy path below.
+    }
+  }
+
+  try {
+    const textarea = document.createElement('textarea')
+    textarea.value = text
+    textarea.setAttribute('readonly', 'true')
+    textarea.style.position = 'fixed'
+    textarea.style.left = '-9999px'
+    textarea.style.top = '0'
+    document.body.appendChild(textarea)
+    textarea.focus()
+    textarea.select()
+    const copied = document.execCommand('copy')
+    document.body.removeChild(textarea)
+    return copied
+  } catch {
+    return false
+  }
+}
 
 function App() {
   const { state, actions } = useLocalStore()
@@ -239,6 +268,104 @@ function App() {
 
     return { totals, balances: balanceRows, settlements }
   }, [participantMap, selectedEvent])
+
+  const formatCopyDate = useCallback((value?: string) => {
+    if (!value) return null
+    const date = new Date(value)
+    if (Number.isNaN(date.getTime())) return null
+    return new Intl.DateTimeFormat(undefined, {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    }).format(date)
+  }, [])
+
+  const buildSettlementBreakdownText = useCallback(() => {
+    if (!selectedEvent) return ''
+
+    const formatter = new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: selectedEvent.currency,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })
+
+    const lines: string[] = []
+    lines.push(`Trip: ${selectedEvent.name}`)
+
+    const start = formatCopyDate(selectedEvent.startDate)
+    const end = formatCopyDate(selectedEvent.endDate)
+    if (start && end) {
+      lines.push(`Date: ${start} - ${end}`)
+    } else if (start) {
+      lines.push(`Date: ${start}`)
+    }
+
+    if (selectedEvent.location?.trim()) {
+      lines.push(`Location: ${selectedEvent.location.trim()}`)
+    }
+
+    lines.push('')
+    lines.push('SETTLEMENTS')
+    if (summary.settlements.length === 0) {
+      lines.push('- Everyone is square. No transfers needed.')
+    } else {
+      summary.settlements.forEach((settlement) => {
+        lines.push(`- ${settlement.from} pays ${settlement.to} ${formatter.format(Math.abs(settlement.amount))}`)
+      })
+    }
+
+    lines.push('')
+    lines.push('EXPENSE BREAKDOWN')
+    summary.balances.forEach((balance) => {
+      const absoluteNet = formatter.format(Math.abs(balance.balance))
+      const netLabel =
+        balance.balance > 0
+          ? `+${absoluteNet} (gets back)`
+          : balance.balance < 0
+            ? `-${absoluteNet} (owes)`
+            : `${absoluteNet} (even)`
+
+      lines.push('')
+      lines.push(balance.name)
+      lines.push(`- Paid: ${formatter.format(balance.paid)}`)
+      lines.push(`- Share: ${formatter.format(balance.owes)}`)
+      lines.push(`- Net: ${netLabel}`)
+    })
+
+    lines.push('')
+    lines.push('DETAILS')
+    if (selectedEvent.expenses.length === 0) {
+      lines.push('- No expenses recorded.')
+    } else {
+      selectedEvent.expenses.forEach((expense) => {
+        const paidBy = expense.paidBy
+          .map((allocation) => {
+            const name = participantMap.get(allocation.participantId)?.name ?? 'Unknown'
+            return `${name} ${formatter.format(allocation.amount)}`
+          })
+          .join(', ')
+        const shares = calculateExpenseShares(expense)
+          .map((share) => {
+            const name = participantMap.get(share.participantId)?.name ?? 'Unknown'
+            return `${name} ${formatter.format(share.amount)}`
+          })
+          .join(', ')
+
+        lines.push(`- ${expense.description}: ${formatter.format(expense.amount)}`)
+        lines.push(`  Paid by: ${paidBy || 'Unknown'}`)
+        lines.push(`  Split: ${shares || 'No split data'}`)
+      })
+    }
+
+    return lines.join('\n')
+  }, [formatCopyDate, participantMap, selectedEvent, summary.balances, summary.settlements])
+
+  const handleCopyBreakdown = useCallback(async () => {
+    const text = buildSettlementBreakdownText()
+    if (!text) return false
+    return copyTextToClipboard(text)
+  }, [buildSettlementBreakdownText])
 
   const handleSelectEvent = (eventId: string) => {
     actions.setLastViewedEvent(eventId)
@@ -754,6 +881,7 @@ function App() {
               actions.setSettlementGroups(selectedEvent.id, updated)
             }}
             onBalanceClick={handleBalanceClick}
+            onCopyBreakdown={handleCopyBreakdown}
           />
         ) : null}
       </main>

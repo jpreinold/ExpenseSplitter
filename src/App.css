@@ -464,6 +464,18 @@
   gap: 0.5rem;
 }
 
+.copy-status {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #64748b;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.copy-status--visible {
+  opacity: 1;
+}
+
 .panel-heading h3 {
   margin: 0;
   font-size: 1.1rem;
