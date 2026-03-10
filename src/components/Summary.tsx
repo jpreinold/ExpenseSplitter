@@ -1,3 +1,4 @@
+import type { SettlementGroup } from '../types/domain'
 import { EventSubNav } from './EventSubNav'
 import { EventHeader } from './EventHeader'
 
@@ -33,6 +34,11 @@ type SummaryProps = {
   onSettlementClick?: (fromId: string, toId: string) => void
   expenseCount: number
   onNavigateToOverview: () => void
+  settlementGroups?: SettlementGroup[]
+  onAddGroupClick?: () => void
+  onEditGroupClick?: (group: SettlementGroup) => void
+  onDeleteGroupClick?: (groupId: string) => void
+  onBalanceClick?: (participantId: string) => void
 }
 
 export function Summary({
@@ -47,6 +53,11 @@ export function Summary({
   onSettlementClick,
   expenseCount,
   onNavigateToOverview,
+  settlementGroups = [],
+  onAddGroupClick,
+  onEditGroupClick,
+  onDeleteGroupClick,
+  onBalanceClick,
 }: SummaryProps) {
   const formatter = new Intl.NumberFormat(undefined, {
     style: 'currency',
@@ -78,6 +89,68 @@ export function Summary({
           }}
         />
       </div>
+
+      {settlementGroups.length > 0 || onAddGroupClick ? (
+        <section aria-labelledby="settlement-groups-heading" className="settlement-groups-panel">
+          <div className="panel-heading">
+            <h3 id="settlement-groups-heading">Settlement groups</h3>
+            {onAddGroupClick && (
+              <button
+                type="button"
+                className="icon-button icon-button--primary"
+                aria-label="Add settlement group"
+                onClick={onAddGroupClick}
+              >
+                <span aria-hidden>+</span>
+              </button>
+            )}
+          </div>
+          {settlementGroups.length === 0 ? (
+            <p className="settlement-groups-empty">
+              Group participants to combine their balances and reduce the number of transfers.
+            </p>
+          ) : (
+            <ul className="settlement-group-list">
+              {settlementGroups.map((group) => (
+                <li key={group.id} className="settlement-group-chip">
+                  <button
+                    type="button"
+                    className="settlement-group-chip__content"
+                    onClick={() => onEditGroupClick?.(group)}
+                    aria-label={`Edit group ${group.name}`}
+                  >
+                    <span>{group.name}</span>
+                  </button>
+                  {onDeleteGroupClick && (
+                    <button
+                      type="button"
+                      className="icon-button icon-button--danger settlement-group-chip__remove"
+                      aria-label={`Remove group ${group.name}`}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        onDeleteGroupClick(group.id)
+                      }}
+                    >
+                      <span aria-hidden>×</span>
+                    </button>
+                  )}
+                </li>
+              ))}
+              {onAddGroupClick && (
+                <li>
+                  <button
+                    type="button"
+                    className="settlement-group-add"
+                    onClick={onAddGroupClick}
+                  >
+                    + Add group
+                  </button>
+                </li>
+              )}
+            </ul>
+          )}
+        </section>
+      ) : null}
 
       <section aria-labelledby="settlements-heading">
         {allSettlementsComplete ? (
@@ -193,7 +266,24 @@ export function Summary({
             <span>Difference</span>
           </div>
           {balances.map((row) => (
-            <div key={row.id} className="balance-table__row">
+            <div
+              key={row.id}
+              className={`balance-table__row ${onBalanceClick ? 'balance-table__row--clickable' : ''}`}
+              role={onBalanceClick ? 'button' : undefined}
+              tabIndex={onBalanceClick ? 0 : undefined}
+              onClick={onBalanceClick ? () => onBalanceClick(row.id) : undefined}
+              onKeyDown={
+                onBalanceClick
+                  ? (e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault()
+                        onBalanceClick(row.id)
+                      }
+                    }
+                  : undefined
+              }
+              aria-label={onBalanceClick ? `View balance breakdown for ${row.name}` : undefined}
+            >
               <span className="balance-table__name">{row.name}</span>
               <span>{formatter.format(row.paid)}</span>
               <span>{formatter.format(row.owes)}</span>

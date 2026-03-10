@@ -117,6 +117,7 @@ export interface Event {
   participants: Participant[]
   expenses: Expense[]
   settlementTracking?: SettlementTracking[]
+  settlementGroups?: SettlementGroup[]
 }
 
 export interface SettlementPayment {
@@ -131,6 +132,12 @@ export interface SettlementTracking {
   payments: SettlementPayment[]
   markedComplete: boolean
   markedCompleteAt?: string
+}
+
+export interface SettlementGroup {
+  id: string
+  name: string
+  participantIds: ParticipantId[]
 }
 
 export interface ParticipantGroup {

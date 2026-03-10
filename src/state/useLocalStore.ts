@@ -9,6 +9,7 @@ import type {
   ParticipantGroup,
   PayerAllocation,
   ReceiptMetadata,
+  SettlementGroup,
   SettlementTracking,
   SplitInstruction,
   SplitState,
@@ -73,6 +74,7 @@ type Action =
   | { type: 'create-group'; group: ParticipantGroup }
   | { type: 'update-group'; groupId: string; updates: Partial<Pick<ParticipantGroup, 'name' | 'participantIds'>> }
   | { type: 'delete-group'; groupId: string }
+  | { type: 'set-settlement-groups'; eventId: EventId; groups: SettlementGroup[] }
   | { type: 'update-participant-id'; eventId: EventId; participantId: ParticipantId; newId: ParticipantId }
   | { type: 'create-unassigned-participant'; participant: Participant }
   | { type: 'remove-unassigned-participant'; participantId: ParticipantId }
@@ -567,6 +569,17 @@ function reducer(state: SplitState, action: Action): SplitState {
       const groups = state.groups.filter((group) => group.id !== action.groupId)
       return { ...state, groups }
     }
+    case 'set-settlement-groups': {
+      const events = state.events.map((event) => {
+        if (event.id !== action.eventId) return event
+        return {
+          ...event,
+          settlementGroups: action.groups,
+          settlementTracking: [], // Clear tracking when groups change
+        }
+      })
+      return { ...state, events }
+    }
     case 'update-participant-id': {
       // Update participant ID across all events and groups
       const events = state.events.map((event) => {
@@ -927,6 +940,10 @@ export function useLocalStore() {
     dispatch({ type: 'delete-group', groupId })
   }, [])
 
+  const setSettlementGroups = useCallback((eventId: EventId, groups: SettlementGroup[]) => {
+    dispatch({ type: 'set-settlement-groups', eventId, groups })
+  }, [])
+
   const updateParticipantId = useCallback((eventId: EventId, participantId: ParticipantId, newId: ParticipantId) => {
     // Validate ID uniqueness across all events and unassigned participants
     const allParticipantIds = new Set<string>()
@@ -979,6 +996,7 @@ export function useLocalStore() {
       createGroup,
       updateGroup,
       deleteGroup,
+      setSettlementGroups,
       updateParticipantId,
       createUnassignedParticipant,
       removeUnassignedParticipant,

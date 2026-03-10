@@ -6,15 +6,23 @@ import { EventList } from './components/EventList'
 import { ExpenseEditor } from './components/ExpenseEditor'
 import { Summary } from './components/Summary'
 import { SettlementDetailModal } from './components/SettlementDetailModal'
+import { SettlementGroupEditor } from './components/SettlementGroupEditor'
+import { BalanceBreakdownModal } from './components/BalanceBreakdownModal'
 import { ParticipantEditModal } from './components/ParticipantEditModal'
 import { EventNameEditModal } from './components/EventNameEditModal'
 import { ParticipantsTab } from './components/ParticipantsTab'
 import { PrimaryNav } from './components/PrimaryNav'
 import { useLocalStore } from './state/useLocalStore'
 import type { EventDraft, ExpenseDraft, GroupDraft } from './state/useLocalStore'
-import { calculateEventBalances, describeSplit, suggestSettlements } from './utils/calculations'
+import {
+  calculateEventBalances,
+  describeSplit,
+  getParticipantExpenseBreakdown,
+  suggestGroupedSettlements,
+  suggestSettlements,
+} from './utils/calculations'
 import { getAllParticipants } from './utils/participants'
-import type { Participant } from './types/domain'
+import type { Participant, SettlementGroup } from './types/domain'
 import { ConfirmDialog } from './components/ConfirmDialog'
 import type { ConfirmationOptions } from './components/ConfirmDialog'
 import PullToRefresh from 'pulltorefreshjs'
@@ -32,6 +40,10 @@ function App() {
   const [editingParticipantEventId, setEditingParticipantEventId] = useState<string | null>(null)
   const [isEditingEventName, setIsEditingEventName] = useState(false)
   const [openSettlement, setOpenSettlement] = useState<{ fromId: string; toId: string } | null>(null)
+  const [settlementGroupEditorState, setSettlementGroupEditorState] = useState<
+    { mode: 'add' } | { mode: 'edit'; group: SettlementGroup } | null
+  >(null)
+  const [openBalanceBreakdownParticipantId, setOpenBalanceBreakdownParticipantId] = useState<string | null>(null)
   const [participantIdError, setParticipantIdError] = useState<string | null>(null)
   const [confirmState, setConfirmState] = useState<(ConfirmationOptions & { resolve: (value: boolean) => void }) | null>(
     null,
@@ -194,16 +206,30 @@ function App() {
       }
     })
 
+    const settlementGroups = selectedEvent.settlementGroups ?? []
     const settlementTracking = selectedEvent.settlementTracking ?? []
-    const settlements = suggestSettlements(balances).map((settlement) => {
+    const settlementsRaw =
+      settlementGroups.length > 0
+        ? suggestGroupedSettlements(balances, settlementGroups)
+        : suggestSettlements(balances)
+
+    const entityNameMap = new Map<string, string>()
+    for (const [id, p] of participantMap) {
+      entityNameMap.set(id, p.name)
+    }
+    for (const g of settlementGroups) {
+      entityNameMap.set(g.id, g.name)
+    }
+
+    const settlements = settlementsRaw.map((settlement) => {
       const tracking = settlementTracking.find(
         (t) => t.fromParticipantId === settlement.from && t.toParticipantId === settlement.to,
       )
       const totalPaid = tracking?.payments.reduce((sum, p) => sum + p.amount, 0) ?? 0
       const isComplete = totalPaid >= settlement.amount - 0.01 // Allow small floating point differences
       return {
-        from: participantMap.get(settlement.from)?.name ?? 'Unknown',
-        to: participantMap.get(settlement.to)?.name ?? 'Unknown',
+        from: entityNameMap.get(settlement.from) ?? 'Unknown',
+        to: entityNameMap.get(settlement.to) ?? 'Unknown',
         fromId: settlement.from,
         toId: settlement.to,
         amount: settlement.amount,
@@ -512,6 +538,53 @@ function App() {
     )
   }
 
+  const handleAddSettlementGroupClick = () => {
+    setSettlementGroupEditorState({ mode: 'add' })
+  }
+
+  const handleEditSettlementGroupClick = (group: SettlementGroup) => {
+    setSettlementGroupEditorState({ mode: 'edit', group })
+  }
+
+  const handleSettlementGroupEditorSave = (group: SettlementGroup) => {
+    if (!selectedEvent) return
+    const existing = selectedEvent.settlementGroups ?? []
+    if (settlementGroupEditorState?.mode === 'edit') {
+      const updated = existing.map((g) => (g.id === group.id ? group : g))
+      actions.setSettlementGroups(selectedEvent.id, updated)
+    } else {
+      actions.setSettlementGroups(selectedEvent.id, [...existing, group])
+    }
+    setSettlementGroupEditorState(null)
+  }
+
+  const handleSettlementGroupEditorDelete = (groupId: string) => {
+    if (!selectedEvent) return
+    const updated = (selectedEvent.settlementGroups ?? []).filter((g) => g.id !== groupId)
+    actions.setSettlementGroups(selectedEvent.id, updated)
+    setSettlementGroupEditorState(null)
+  }
+
+  const handleCloseSettlementGroupEditor = () => {
+    setSettlementGroupEditorState(null)
+  }
+
+  const handleBalanceClick = (participantId: string) => {
+    setOpenBalanceBreakdownParticipantId(participantId)
+  }
+
+  const handleCloseBalanceBreakdown = () => {
+    setOpenBalanceBreakdownParticipantId(null)
+  }
+
+  const balanceBreakdownData = useMemo(() => {
+    if (!selectedEvent || !openBalanceBreakdownParticipantId) return null
+    const row = summary.balances.find((b) => b.id === openBalanceBreakdownParticipantId)
+    if (!row) return null
+    const breakdown = getParticipantExpenseBreakdown(selectedEvent, openBalanceBreakdownParticipantId)
+    return { row, breakdown }
+  }, [selectedEvent, openBalanceBreakdownParticipantId, summary])
+
   const handleNavigateToParticipantsTab = () => {
     setView('participants')
   }
@@ -672,6 +745,15 @@ function App() {
             onSettlementClick={handleSettlementClick}
             expenseCount={selectedEvent.expenses.length}
             onNavigateToOverview={() => setView('eventOverview')}
+            settlementGroups={selectedEvent.settlementGroups ?? []}
+            onAddGroupClick={handleAddSettlementGroupClick}
+            onEditGroupClick={handleEditSettlementGroupClick}
+            onDeleteGroupClick={(groupId) => {
+              if (!selectedEvent) return
+              const updated = (selectedEvent.settlementGroups ?? []).filter((g) => g.id !== groupId)
+              actions.setSettlementGroups(selectedEvent.id, updated)
+            }}
+            onBalanceClick={handleBalanceClick}
           />
         ) : null}
       </main>
@@ -711,6 +793,33 @@ function App() {
           tracking={openSettlementData.tracking}
           onAddPayment={handleAddSettlementPayment}
           onRemovePayment={handleRemoveSettlementPayment}
+        />
+      )}
+
+      {settlementGroupEditorState && selectedEvent && (
+        <SettlementGroupEditor
+          isOpen={Boolean(settlementGroupEditorState)}
+          group={settlementGroupEditorState.mode === 'edit' ? settlementGroupEditorState.group : null}
+          participants={selectedEvent.participants}
+          existingGroups={selectedEvent.settlementGroups ?? []}
+          onClose={handleCloseSettlementGroupEditor}
+          onSave={handleSettlementGroupEditorSave}
+          onDelete={
+            settlementGroupEditorState.mode === 'edit' ? handleSettlementGroupEditorDelete : undefined
+          }
+        />
+      )}
+
+      {balanceBreakdownData && (
+        <BalanceBreakdownModal
+          isOpen={Boolean(openBalanceBreakdownParticipantId)}
+          participantName={balanceBreakdownData.row.name}
+          currency={selectedEvent?.currency ?? 'USD'}
+          paid={balanceBreakdownData.row.paid}
+          owes={balanceBreakdownData.row.owes}
+          balance={balanceBreakdownData.row.balance}
+          breakdown={balanceBreakdownData.breakdown}
+          onClose={handleCloseBalanceBreakdown}
         />
       )}
 

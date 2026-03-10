@@ -3,6 +3,7 @@ import type {
   Expense,
   Participant,
   ParticipantId,
+  SettlementGroup,
   SplitInstruction,
 } from '../types/domain'
 
@@ -215,6 +216,72 @@ export function calculateEventBalances(event: Event): EventBalanceSummary {
   }
 }
 
+/**
+ * Settlement where from/to can be a group ID or participant ID.
+ * Used when settlement groups are active.
+ */
+export interface GroupedSettlement extends Settlement {
+  from: string
+  to: string
+}
+
+export function suggestGroupedSettlements(
+  balances: ParticipantBalance[],
+  settlementGroups: SettlementGroup[],
+  tolerance = 0.01,
+): GroupedSettlement[] {
+  if (settlementGroups.length === 0) {
+    return suggestSettlements(balances, tolerance)
+  }
+
+  const participantToGroup = new Map<ParticipantId, string>()
+  for (const group of settlementGroups) {
+    for (const pid of group.participantIds) {
+      participantToGroup.set(pid, group.id)
+    }
+  }
+
+  const balanceByEntity = new Map<string, { participantId: string; paid: number; owes: number; net: number }>()
+
+  for (const group of settlementGroups) {
+    let paid = 0
+    let owes = 0
+    for (const pid of group.participantIds) {
+      const bal = balances.find((b) => b.participantId === pid)
+      if (bal) {
+        paid += bal.paid
+        owes += bal.owes
+      }
+    }
+    const net = Number((paid - owes).toFixed(2))
+    balanceByEntity.set(group.id, {
+      participantId: group.id,
+      paid,
+      owes,
+      net,
+    })
+  }
+
+  for (const bal of balances) {
+    if (participantToGroup.has(bal.participantId)) continue
+    balanceByEntity.set(bal.participantId, {
+      participantId: bal.participantId,
+      paid: bal.paid,
+      owes: bal.owes,
+      net: bal.net,
+    })
+  }
+
+  const mergedBalances = Array.from(balanceByEntity.values()).map((b) => ({
+    participantId: b.participantId,
+    paid: b.paid,
+    owes: b.owes,
+    net: b.net,
+  }))
+
+  return suggestSettlements(mergedBalances, tolerance) as GroupedSettlement[]
+}
+
 export function suggestSettlements(balances: ParticipantBalance[], tolerance = 0.01): Settlement[] {
   const creditors = balances
     .filter((balance) => balance.net > tolerance)
@@ -253,6 +320,47 @@ export function suggestSettlements(balances: ParticipantBalance[], tolerance = 0
   }
 
   return settlements
+}
+
+export interface ExpenseBreakdownItem {
+  expenseId: string
+  description: string
+  totalAmount: number
+  paidAmount: number
+  owedAmount: number
+  netAmount: number
+}
+
+export function getParticipantExpenseBreakdown(
+  event: Event,
+  participantId: ParticipantId,
+): ExpenseBreakdownItem[] {
+  const result: ExpenseBreakdownItem[] = []
+
+  for (const expense of event.expenses) {
+    const paidAmount =
+      expense.paidBy
+        .filter((a) => a.participantId === participantId)
+        .reduce((sum, a) => sum + a.amount, 0) ?? 0
+
+    const shares = calculateExpenseShares(expense)
+    const share = shares.find((s) => s.participantId === participantId)
+    const owedAmount = share?.amount ?? 0
+
+    if (paidAmount === 0 && owedAmount === 0) continue
+
+    const netAmount = Number((paidAmount - owedAmount).toFixed(2))
+    result.push({
+      expenseId: expense.id,
+      description: expense.description,
+      totalAmount: expense.amount,
+      paidAmount,
+      owedAmount,
+      netAmount,
+    })
+  }
+
+  return result
 }
 
 export function describeSplit(expense: Expense, participants: Map<ParticipantId, Participant>): string {

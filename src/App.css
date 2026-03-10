@@ -1405,12 +1405,97 @@
   font-weight: 600;
 }
 
+.balance-table__row--clickable {
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.balance-table__row--clickable:hover {
+  background: rgba(37, 99, 235, 0.06);
+  border-color: rgba(37, 99, 235, 0.2);
+}
+
+.balance-table__row--clickable:focus-visible {
+  outline: none;
+  border-color: rgba(37, 99, 235, 0.5);
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2);
+}
+
 .balance-table__row .positive {
   color: #0f766e;
 }
 
 .balance-table__row .negative {
   color: #dc2626;
+}
+
+.settlement-groups-panel {
+  margin-bottom: 0.5rem;
+}
+
+.settlement-groups-empty {
+  margin: 0;
+  padding: 0.75rem 0;
+  color: #64748b;
+  font-size: 0.95rem;
+}
+
+.settlement-group-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.settlement-group-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 999px;
+  background: rgba(37, 99, 235, 0.1);
+  border: 1px solid rgba(37, 99, 235, 0.25);
+}
+
+.settlement-group-chip__content {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-weight: 600;
+  color: #1d4ed8;
+  cursor: pointer;
+}
+
+.settlement-group-chip__content:hover {
+  text-decoration: underline;
+}
+
+.settlement-group-chip__remove {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  font-size: 1rem;
+}
+
+.settlement-group-add {
+  background: none;
+  border: 1px dashed rgba(148, 163, 184, 0.6);
+  border-radius: 999px;
+  padding: 0.5rem 0.9rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #64748b;
+  cursor: pointer;
+  transition: border-color 0.2s ease, color 0.2s ease;
+}
+
+.settlement-group-add:hover {
+  border-color: #1d4ed8;
+  color: #1d4ed8;
 }
 
 .settlement-list {
@@ -1641,6 +1726,123 @@
 .modal__form {
   display: grid;
   gap: 1rem;
+}
+
+.modal__content {
+  display: grid;
+  gap: 1rem;
+}
+
+.balance-breakdown-modal .modal__header {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.balance-breakdown-modal__summary {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  background: rgba(248, 250, 252, 0.9);
+  border-radius: 12px;
+  border: 1px solid rgba(226, 232, 240, 0.7);
+}
+
+.balance-breakdown-modal__summary-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.95rem;
+}
+
+.balance-breakdown-modal__summary-row--net {
+  font-size: 1.05rem;
+  padding-top: 0.5rem;
+  margin-top: 0.25rem;
+  border-top: 1px solid rgba(226, 232, 240, 0.8);
+}
+
+.balance-breakdown-modal__summary-row.positive {
+  color: #0f766e;
+}
+
+.balance-breakdown-modal__summary-row.negative {
+  color: #dc2626;
+}
+
+.balance-breakdown-modal__expenses-heading {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.balance-breakdown-modal__empty {
+  margin: 0;
+  color: #64748b;
+  font-size: 0.95rem;
+}
+
+.balance-breakdown-modal__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.balance-breakdown-modal__item {
+  padding: 0.85rem 1rem;
+  border-radius: 12px;
+  background: rgba(248, 250, 252, 0.9);
+  border: 1px solid rgba(226, 232, 240, 0.7);
+}
+
+.balance-breakdown-modal__item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.balance-breakdown-modal__item-desc {
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.balance-breakdown-modal__item-total {
+  font-size: 0.9rem;
+  color: #64748b;
+}
+
+.balance-breakdown-modal__item-details {
+  display: grid;
+  gap: 0.25rem;
+  font-size: 0.9rem;
+}
+
+.balance-breakdown-modal__detail-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.balance-breakdown-modal__detail-row--paid {
+  color: #0f766e;
+}
+
+.balance-breakdown-modal__detail-row--owed {
+  color: #dc2626;
+}
+
+.balance-breakdown-modal__detail-row--net.positive {
+  color: #0f766e;
+  font-weight: 600;
+}
+
+.balance-breakdown-modal__detail-row--net.negative {
+  color: #dc2626;
+  font-weight: 600;
 }
 
 .modal__form label {
