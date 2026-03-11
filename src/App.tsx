@@ -31,9 +31,28 @@ import PullToRefresh from 'pulltorefreshjs'
 type ViewMode = 'events' | 'participants' | 'eventOverview' | 'eventSummary' | 'editor'
 
 async function copyTextToClipboard(text: string): Promise<boolean> {
+  const normalizedText = text.replace(/\r?\n/g, '\r\n')
+
+  if (navigator.clipboard?.write && typeof ClipboardItem !== 'undefined') {
+    try {
+      const html = `<pre>${normalizedText
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')}</pre>`
+      const item = new ClipboardItem({
+        'text/plain': new Blob([normalizedText], { type: 'text/plain' }),
+        'text/html': new Blob([html], { type: 'text/html' }),
+      })
+      await navigator.clipboard.write([item])
+      return true
+    } catch {
+      // Fall through to other strategies.
+    }
+  }
+
   if (navigator.clipboard?.writeText) {
     try {
-      await navigator.clipboard.writeText(text)
+      await navigator.clipboard.writeText(normalizedText)
       return true
     } catch {
       // Fall back to legacy copy path below.
@@ -41,8 +60,23 @@ async function copyTextToClipboard(text: string): Promise<boolean> {
   }
 
   try {
+    const listener = (event: ClipboardEvent) => {
+      event.preventDefault()
+      event.clipboardData?.setData('text/plain', normalizedText)
+      event.clipboardData?.setData('text', normalizedText)
+    }
+
+    document.addEventListener('copy', listener, true)
+    const copied = document.execCommand('copy')
+    document.removeEventListener('copy', listener, true)
+    if (copied) return true
+  } catch {
+    // Try textarea fallback below.
+  }
+
+  try {
     const textarea = document.createElement('textarea')
-    textarea.value = text
+    textarea.value = normalizedText
     textarea.setAttribute('readonly', 'true')
     textarea.style.position = 'fixed'
     textarea.style.left = '-9999px'
